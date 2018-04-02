@@ -2717,9 +2717,9 @@ def get_callbacks(checkpoint_path, learning_rate):
 
     lr_schedule = step_lr_schedule(learning_rate)
 
-    model_checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_path, monitor = 'val_loss', save_best_only=True, save_weights_only = True)
-    model_earlystopping = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 12)
-    callbacks = [model_checkpoint, model_earlystopping, model_history, lr_schedule]
+    model_checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_path, monitor = 'val_loss', save_best_only=False, save_weights_only = True)
+    #model_earlystopping = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 12)
+    callbacks = [model_checkpoint, model_history, lr_schedule,]# model_earlystopping]
 
     return callbacks
 
