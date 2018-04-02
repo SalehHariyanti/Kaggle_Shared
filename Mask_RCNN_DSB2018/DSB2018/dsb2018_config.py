@@ -19,6 +19,12 @@ import os
 import math
 from settings import train_dir, test_dir, data_dir
 
+from tensorflow.python.client import device_lib
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+
 base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
    
 class mask_rcnn_config(config.Config):
@@ -63,7 +69,7 @@ class mask_rcnn_config(config.Config):
         self.USE_MINI_MASK = use_mini_mask
         self.MINI_MASK_SHAPE = (mini_mask_shape, mini_mask_shape)  # (height, width) of the mini-mask
     
-        self.GPU_COUNT = 1
+        self.GPU_COUNT = len(get_available_gpus())
         self.IMAGES_PER_GPU = images_per_gpu
          # Effective batch size
         self.BATCH_SIZE = self.IMAGES_PER_GPU * self.GPU_COUNT
