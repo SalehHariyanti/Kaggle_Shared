@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt    # Python 2D plotting library
 import matplotlib.cm as cm         # Color map
 from sklearn.neighbors import NearestNeighbors
 
-base_dir = 'D:/Kaggle/Data_Science_Bowl_2018'
+base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 data_dir = os.path.join(base_dir, 'data')
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test') 
@@ -358,7 +358,8 @@ def infer_target_id(imgs):
 
 def run(save_filename):
 
-    source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
+    # TODO: ENABLE supplementary_data_dir once downloaded!!!!!
+    source_dirs = [train_dir] + [test_dir] #+ supplementary_data_dir
 
     # Basic properties of images/masks. 
     all_df = read_data_properties(source_dirs, IMG_DIR_NAME) 

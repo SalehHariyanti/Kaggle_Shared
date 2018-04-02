@@ -10,7 +10,8 @@
 (260, 347, 3) : 5
 (603, 1272, 3) : 6
 '''
-
+import sys
+sys.path.append('../')
 import config
 import numpy as np
 np.random.seed(1234)
@@ -18,6 +19,7 @@ import os
 import math
 from settings import train_dir, test_dir, data_dir
 
+base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
    
 class mask_rcnn_config(config.Config):
 
@@ -45,7 +47,7 @@ class mask_rcnn_config(config.Config):
         self.test_data_root = test_data_root
     
         self.MODEL_DIR = model_dir
-        self.COCO_MODEL_PATH = 'C:/Users/User/.keras/models/mask_rcnn_coco.h5'
+        self.COCO_MODEL_PATH = os.path.join(base_dir, 'mask_rcnn_coco.h5')
         # imagenet, coco, or last
         self.init_with = init_with
 

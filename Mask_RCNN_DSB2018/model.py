@@ -22,6 +22,7 @@ import numpy as np
 import scipy.misc
 from scipy import ndimage
 from skimage import exposure
+import multiprocessing
 
 # Import keras / tensorflow and set config
 import keras
@@ -2450,7 +2451,7 @@ class MaskRCNN():
         if os.name is 'nt':
             workers = 1
         else:
-            workers = max(self.config.BATCH_SIZE // 2, 2)
+            workers = multiprocessing.cpu_count()
 
         self.keras_model.fit_generator(
             train_generator,
