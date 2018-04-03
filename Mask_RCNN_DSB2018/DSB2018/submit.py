@@ -14,6 +14,8 @@ import cv2
 import visualize
 import matplotlib.pyplot as plt
 
+import train
+
                     
 def base_test_dataset():
     dataset = DSB2018_Dataset()
@@ -1126,8 +1128,14 @@ def predict_34():
 
     predict_tiled_model(_config, dataset, tile_threshold = 512 * 512)
 
+
+def predict_experiment(fn_experiment):
+    _config, dataset = fn_experiment(training=False)
+    predict_model(_config, dataset)
+
 def main():
-    predict_34()
+    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3)
+
 
 if __name__ == '__main__':
     main()
