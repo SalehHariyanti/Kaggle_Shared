@@ -1271,8 +1271,12 @@ def load_image_gt_augment(dataset, config, image_id, augment=False,
 
     # Store off avg mask-instance size in pixels
     if config.mask_size_filename is not None:
-        mask_sizes = np.load(config.mask_size_filename)
-        np.save(config.mask_size_filename, np.append(mask_sizes, np.mean(np.sum(mask, axis = (0, 1)))))
+        # Putting this in a try-except in case of lock conflicts if multiprocessing
+        try:
+            mask_sizes = np.load(config.mask_size_filename)
+            np.save(config.mask_size_filename, np.append(mask_sizes, np.mean(np.sum(mask, axis = (0, 1)))))
+        except:
+            pass
 
     # Active classes
     # Different datasets have different classes, so track the
@@ -2474,7 +2478,7 @@ class MaskRCNN():
         )
         self.epoch = max(self.epoch, epochs)
 
-    def mold_inputs(self, images):
+    def mold_inputs(self, images, mask_scale = None):
         """Takes a list of images and modifies them to the format expected
         as an input to the neural network.
         images: List of image matricies [height,width,depth]. Images can have
@@ -2489,14 +2493,21 @@ class MaskRCNN():
         molded_images = []
         image_metas = []
         windows = []
-        for image in images:
+        for i, image in enumerate(images):
             # Resize image to fit the model expected size
             # TODO: move resizing to mold_image()
-            molded_image, window, scale, padding = utils.resize_image(
-                image,
-                min_dim=self.config.IMAGE_MIN_DIM,
-                max_dim=self.config.IMAGE_MAX_DIM,
-                padding=self.config.IMAGE_PADDING)
+            if mask_scale is None:
+                molded_image, window, scale, padding = utils.resize_image(
+                    image,
+                    min_dim=self.config.IMAGE_MIN_DIM,
+                    max_dim=self.config.IMAGE_MAX_DIM,
+                    padding=self.config.IMAGE_PADDING)
+            else:
+                molded_image, window, scale, padding = utils.resize_image_scaled(
+                    image,
+                    mask_scale[i],
+                    min_dim=self.config.IMAGE_MIN_DIM,
+                    max_dim=self.config.IMAGE_MAX_DIM)
             molded_image = mold_image(molded_image, self.config)
             # Build image_meta
             image_meta = compose_image_meta(
@@ -2573,11 +2584,11 @@ class MaskRCNN():
 
         return boxes, class_ids, scores, full_masks
 
-    def detect(self, images, verbose=0):
+    def detect(self, images, verbose=0, mask_scale = None):
         """Runs the detection pipeline.
 
         images: List of images, potentially of different sizes.
-
+        mask_scale: List of len(images). Allows you to resize images to a given scale if provided.
         Returns a list of dicts, one dict per image. The dict contains:
         rois: [N, (y1, x1, y2, x2)] detection bounding boxes
         class_ids: [N] int class IDs
@@ -2593,7 +2604,7 @@ class MaskRCNN():
             for image in images:
                 log("image", image)
         # Mold inputs to format expected by the neural network
-        molded_images, image_metas, windows = self.mold_inputs(images)
+        molded_images, image_metas, windows = self.mold_inputs(images, mask_scale)
         if verbose:
             log("molded_images", molded_images)
             log("image_metas", image_metas)
