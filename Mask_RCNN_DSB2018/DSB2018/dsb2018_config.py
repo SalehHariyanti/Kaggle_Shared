@@ -49,7 +49,8 @@ class mask_rcnn_config(config.Config):
                  identifier = '',
                  augmentation_crop = 0.5,
                  augmentation_dict = {'dim_ordering': 'tf', 'horizontal_flip': True, 'vertical_flip': True},
-                 fn_load = 'load_image_gt_augment'):
+                 fn_load = 'load_image_gt_augment',
+                 mask_size_dir = None):
 
         self.train_data_root = train_data_root
         self.val_data_root = val_data_root
@@ -177,6 +178,15 @@ class mask_rcnn_config(config.Config):
         self.fn_load = fn_load
 
         self.NAME = self.get_name()
+
+        # Set up mask size saving if requested
+        if mask_size_dir is not None:
+            self.mask_size_filename = os.path.join(mask_size_dir, ''.join((self.NAME, '.npy')))
+            if not os.path.exists(self.mask_size_filename):
+                mask_size = np.array([])
+                np.save(self.mask_size_filename, mask_size)
+        else:
+            self.mask_size_filename = None
 
 
     def to_string(self, x):
