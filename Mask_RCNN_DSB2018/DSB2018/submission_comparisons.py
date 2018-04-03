@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import cv2
 import csv
 
-base_dir = 'D:/Kaggle/Data_Science_Bowl_2018'
+base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 data_dir = os.path.join(base_dir, 'data')
 test_dir = os.path.join(base_dir, 'test')
