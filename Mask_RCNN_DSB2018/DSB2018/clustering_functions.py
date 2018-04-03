@@ -356,10 +356,10 @@ def infer_target_id(imgs):
 
     return colour_id
 
-def run(save_filename):
+def run(save_filename, source_dirs=None):
 
-    # TODO: ENABLE supplementary_data_dir once downloaded!!!!!
-    source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
+    if source_dirs is None:
+        source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
 
     # Basic properties of images/masks. 
     all_df = read_data_properties(source_dirs, IMG_DIR_NAME) 
