@@ -148,6 +148,47 @@ def train_resnet101_flips_alldata_minimask12_double_invert_masksizes(training = 
         return _config, dataset
 
 
+def train_resnet101_flips_alldata_minimask12_double_invert_scaled(training = True):
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               identifier = '2inv',
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True},
+                               fn_load = 'load_image_gt_augment_scaled',
+                               mask_size_dir = os.path.join(data_dir, 'mask_sizes'))
+
+    if training:
+        # Training dataset
+        dataset_train = DSB2018_Dataset(invert_type = 2)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+        dataset_train.prepare()
+
+        # Validation dataset
+        dataset_val = DSB2018_Dataset(invert_type = 2)
+        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+        dataset_val.prepare()
+
+        # Create model in training mode
+        model = modellib.MaskRCNN(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=30,
+                    layers='all')
+
+    else:
+
+        dataset = DSB2018_Dataset(invert_type = 2)
+        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.prepare()
+        return _config, dataset
+
+
 def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(training=True):
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
@@ -191,7 +232,8 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
 
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
-    train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
+    #train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
+    train_resnet101_flips_alldata_minimask12_double_invert_scaled()
 
 if __name__ == '__main__':
     main()
