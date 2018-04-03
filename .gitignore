@@ -3,3 +3,7 @@
 ################################################################################
 
 /Mask_RCNN_DSB2018/DSB2018/DSB2018.pyproj
+/Mask_RCNN_DSB2018/DSB2018/DSB2018.sln
+/Mask_RCNN_DSB2018/DSB2018/DSB20181.pyproj
+*.sln
+*.suo
