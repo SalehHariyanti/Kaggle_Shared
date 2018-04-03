@@ -2556,7 +2556,7 @@ class MaskRCNN():
             workers = 1
             use_multiprocessing = False
         else:
-            workers = multiprocessing.cpu_count()
+            workers = multiprocessing.cpu_count() - 2
             use_multiprocessing = True
 
         self.keras_model.fit_generator(

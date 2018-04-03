@@ -197,6 +197,7 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
                                test_data_root = test_mosaics_dir,
                                mini_mask_shape = 12,
                                identifier = 'double_invert_mosaics',
+                               augmentation_crop = 1.,
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
                                                     'vertical_flip': True, 
