@@ -1,6 +1,45 @@
 import numpy as np
 
 
+def create_id(x_in):
+    """
+    Function that takes in a matrix of values (x_in)
+    and converts these to ids, starting from 0
+    """
+    (u_x_in, idx) = unique_rows(x_in)
+    return idx.astype(np.int64)
+
+
+def unique_rows(x_in):
+    """
+    Function that takes in an ndarray of values (x_in)
+    and returns unique rows aswell as the indices 
+    which those rows occur in
+    """
+    if len(x_in.shape) > 1:
+        x_in_transform = combine_rows(x_in)
+    else:
+        x_in_transform = x_in
+
+    u_x_in_transform, idx, u_x_in_idx = np.unique(x_in_transform, return_index = True, return_inverse = True)
+    u_x_in = x_in[idx]
+    return (u_x_in, u_x_in_idx)
+
+
+def combine_rows(x_in):
+    """ 
+    Function that transforms a 2-dimensional array, x_in,
+    into a single dimension.
+    """
+    #return np.asanyarray(x_in.view([('', x_in.dtype)]*x_in.shape[1])).flatten()
+    try:
+        return np.asanyarray(x_in.view(np.dtype((np.void, x_in.dtype.itemsize * x_in.shape[1])))).flatten() # This one seems to work much quicker in subsequent functions  
+    except:
+        # see https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.view.html
+        z = x_in.copy()     
+        return np.asanyarray(z.view(np.dtype((np.void, z.dtype.itemsize * z.shape[1])))).flatten() # This one seems to work
+
+
 def ismember(a, b, index_requested = True):
     """
     Function that takes two input arrays (ndim = 1)
@@ -129,3 +168,19 @@ def jagged_list_to_np(x):
         output[i] = _x
 
     return output
+
+
+def maskrcnn_mask_to_labels(masks):
+    """
+    Converts masks to labels.
+    """
+    mask_shape = masks.shape[:2]
+
+    labels = np.zeros(mask_shape, dtype = np.int)
+    for i, mask in enumerate(list(np.moveaxis(masks, -1, 0))):
+        labels[mask > 0] = (i + 1)
+
+    # Make sure they are relabeled to go from 1 -> N
+    labels = create_id(labels.flatten()).reshape(mask_shape)
+
+    return labels

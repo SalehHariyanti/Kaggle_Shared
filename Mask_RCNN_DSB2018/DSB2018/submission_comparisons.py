@@ -4,8 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import cv2
 import csv
+from visualize import *
 
-base_dir = 'D:/Kaggle/Data_Science_Bowl_2018'
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 data_dir = os.path.join(base_dir, 'data')
 test_dir = os.path.join(base_dir, 'test')
@@ -13,111 +14,6 @@ submissions_dir = os.path.join(base_dir, 'submissions')
 
 #############
 # Comparing submission outputs
-
-def load_img(filename, hsv = False, greyscale = False, adjust_contrast = False, lab = False):
-
-
-    img = np.array(PIL.Image.open(filename), dtype=np.uint8) if filename.endswith('gif') else cv2.imread(filename)
-    
-    if img is None:
-        print(' '.join((filename, 'corrupted or does not exist.')))
-        return None
-
-    # Force three dims if grey (gets converted later if greyscale is requested)
-    if img.ndim == 2:
-        img = np.stack([img] * 3, axis = -1)
-
-    if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # cv2 returns in BGR order
-
-    if hsv:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-    if greyscale:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    if adjust_contrast:
-        img = adjust_img_contrast(img)
-
-    if lab:
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-
-    return img
-
-
-def resize_img(img, rows, cols):
-    """
-    Resize an image with cv2
-    To shrink an image, it will generally look best with cv::INTER_AREA interpolation, whereas to enlarge an image, it will generally look best with cv::INTER_CUBIC (slow) or cv::INTER_LINEAR (faster but still looks OK).
-    """
-    interpolation = cv2.INTER_AREA if np.product(img.shape[:2]) > (rows * cols) else cv2.INTER_LINEAR
-    return cv2.resize(img, (cols, rows), interpolation = interpolation)
-
-
-def grays_to_RGB(img):
-    """
-    turn 2D grayscale image into grayscale RGB
-    """
-    return np.dstack((img, img, img)) 
-
-
-def image_with_masks(img, masks, edge_colour = 255):
-    """
-    returns a copy of the image with edges of the masks added 
-    (up to three masks can be added)
-    """
-
-    img_color = grays_to_RGB(img.copy()) if img.ndim < 3 else img.copy()
-    img_color = (img_color * 255).astype(np.uint8) if np.max(img_color) <= 1 else img_color
-    mask_edges = [cv2.Canny((masks[i] * 255).astype(np.uint8), 100, 200) > 0 for i in range(min(3, len(masks)))]
-
-    for i in range(len(mask_edges)):
-        img_color[mask_edges[i], i] = edge_colour 
-
-    return img_color
-
-
-def image_with_labels(img, label, edge_colour = 255):
-    """
-    returns a copy of the image with edges of the masks added 
-    (up to three masks can be added)
-    """
-
-    img_color = grays_to_RGB(img.copy()) if img.ndim < 3 else img.copy()
-    img_color = (img_color * 255).astype(np.uint8) if np.max(img_color) <= 1 else img_color
-
-    u_label = np.unique(label)
-    mask_edges = [cv2.Canny(((label == i) * 255).astype(np.uint8), 100, 200) > 0 for i in u_label[u_label != 0]]
-    mask_edges = np.max(np.array(mask_edges), axis = 0)
-
-    for i in range(3):
-        img_color[mask_edges, i] = edge_colour 
-
-    return img_color
-
-
-def plot_multiple_images(img_list, title_list = None, nrows = 3, ncols = 6, greyscale = False):
-
-    title_list = ['' for i in img_list] if title_list is None else title_list
-    
-    nrows = int(np.ceil(len(img_list) / ncols)) if nrows is None else nrows
-    ncols = int(np.ceil(len(img_list) / nrows)) if ncols is None else ncols
-
-    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 6),
-                             subplot_kw={'xticks': [], 'yticks': []})
-
-    fig.subplots_adjust(hspace=0.3, wspace=0.05)
-
-    for ax, img, t in zip(axes.flat, img_list, title_list):
-        if greyscale:
-            ax.imshow(img.astype(np.uint8), cmap = 'gray')
-        else:
-            ax.imshow(img.astype(np.uint8))
-        ax.set_title(t)
-
-    plt.show()
-
-    return
 
 
 def run_length_decode(rel, H, W, fill_value = 255, index_offset = 0):
@@ -183,5 +79,10 @@ def compare_submissions(submission_files):
     return
 
 
-compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv'),
-                     os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180326101255_.csv')])
+def main():
+    # Overwrite filenames with the submissions you wish to compare
+    compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv'),
+                         os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180326101255_.csv')])
+
+if __name__ == '__main__':
+    main()

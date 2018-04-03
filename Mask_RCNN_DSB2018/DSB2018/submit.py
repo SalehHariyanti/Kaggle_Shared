@@ -13,6 +13,7 @@ import cv2
 
 import visualize
 import matplotlib.pyplot as plt
+
                     
 def base_test_dataset():
     dataset = DSB2018_Dataset()
@@ -85,7 +86,7 @@ def maskrcnn_detect_scale(model, images, threshold, scales = [0.6, 0.8, 1.2, 1.4
             # Reshape masks so that they can be concatenated correctly
             results_scale[j][i]['masks'] = np.moveaxis(results_scale[j][i]['masks'], -1, 0)
 
-    # Carry out non-maximum suppression to reduce results_flip for each image to a single set of results
+    # Carry out non-maximum suppression to reduce results_scale for each image to a single set of results
     results = []
     for i in range(len(images)):
 
@@ -101,6 +102,166 @@ def maskrcnn_detect_scale(model, images, threshold, scales = [0.6, 0.8, 1.2, 1.4
         results.append(img_results_scale)
 
     return results
+
+
+def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False):
+    """
+    Splits images into tiles and combines results.
+    If nms_tiles = True, the tiled results are combined with those for the original image.
+    If nms_tiles = False, tiled results that are not on the border are used, and combined with results for the original image that do not overlap with tiled masks.
+    """
+    
+    n_images = len(images)
+    n_grid = np.product(grid_shape)
+    border_pixel_threshold = 5
+
+    # grid_data = (grid, x, y, per_col, per_row, pad_col, pad_row) for each image
+    grid_data = [create_tile_template(img.shape, grid_shape) for img in images]
+
+    # Tile original images
+    images_tiled = [tile_image(img, grid) for img, grid in zip(images, grid_data)]
+
+    # Reorder so that you have n images x m tiles
+    images_tiled = [[images_tiled[j][i] for j in range(n_images)] for i in range(n_grid)]
+    
+    # Detect (results in orginal format)
+    results_tiles = [model.detect(imgs, verbose = 0) for imgs in images_tiled]
+
+    # Combine back from tiles to original
+    masks_retiled = [[]] * n_images
+    masks_retiled_scores = [[]] * n_images
+    masks_retiled_class_ids = [[]] * n_images
+    for i in range(n_images):
+
+        for j in range(n_grid):
+
+            # We will be ignoring any masks from the tiles that are too close to borders as these are unreliable.
+            # (You will replace these with nuclei from the original mask)
+            border_pixels = np.ones(results_tiles[j][i]['masks'].shape)
+            border_pixels[border_pixel_threshold : -border_pixel_threshold, border_pixel_threshold : -border_pixel_threshold] = 0
+
+            valid_mask = np.logical_and(np.sum(np.multiply(results_tiles[j][i]['masks'], border_pixels), axis = (0, 1)) == 0,
+                                        np.sum(results_tiles[j][i]['masks'], axis = (0, 1)) > 0)
+
+            if False: 
+                #Sanity checking...
+                visualize.plot_multiple_images([(images[i]*255).astype(np.uint8),
+                                                (images[i]*255).astype(np.uint8),
+                                                du.maskrcnn_mask_to_labels(results_tiles[0][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[1][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[2][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[3][i]['masks'])],
+                                               nrows = 3, ncols = 2)
+
+                visualize.plot_multiple_images([du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks']), 
+                                                du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks'][:, :, valid_mask])], nrows = 1, ncols = 2)
+
+            this_n_masks = np.sum(valid_mask)
+
+            if this_n_masks > 0:
+
+                this_mask = np.zeros(grid_data[i][0].shape + (this_n_masks,), dtype = np.int)
+                this_mask[grid_data[i][0] == j + 1] = results_tiles[j][i]['masks'][:, :, valid_mask].reshape(-1, this_n_masks)
+
+                if len(masks_retiled[i]) == 0:
+                    masks_retiled[i] = np.moveaxis(this_mask, -1, 0)
+                    masks_retiled_scores[i] = results_tiles[j][i]['scores'][valid_mask]
+                    masks_retiled_class_ids[i] = results_tiles[j][i]['class_ids'][valid_mask]
+                else:
+                    masks_retiled[i] = np.concatenate((masks_retiled[i], np.moveaxis(this_mask, -1, 0)))
+                    masks_retiled_scores[i] = np.concatenate((masks_retiled_scores[i], results_tiles[j][i]['scores'][valid_mask]))
+                    masks_retiled_class_ids[i] = np.concatenate((masks_retiled_class_ids[i], results_tiles[j][i]['class_ids'][valid_mask]))
+
+            else:
+
+                masks_retiled[i] = np.zeros((1, ) + grid_data[i][0].shape, dtype = np.int)
+                masks_retiled_scores[i] = np.array([0])
+                masks_retiled_class_ids[i] = np.array([0])
+
+    results_retiled = [{'masks': mask_retiled[:, :images[i].shape[0], :images[i].shape[1]], 
+                        'scores': mask_retiled_score,
+                        'class_ids': mask_retiled_class_id,
+                        'rois': utils.extract_bboxes(np.moveaxis(mask_retiled, 0, -1))} 
+                        for i, (mask_retiled, mask_retiled_score, mask_retiled_class_id) in enumerate(zip(masks_retiled, masks_retiled_scores, masks_retiled_class_ids))]
+        
+    # Detect original results
+    results_orig = model.detect(images, verbose = 0)
+    # Reshape masks so that they are compatible with pu.concatenate_list_of_dicts
+    for r in results_orig:
+        r['masks'] = np.moveaxis(r['masks'], -1, 0)
+        
+    # Reduce each image to a single set of results, combining the original with the tiled version
+    results = []
+    for i in range(len(images)):
+
+        if nms_tiles:
+            # Carry out NMS of the original with the tiled version (less borders)
+            img_results_retiled = du.concatenate_list_of_dicts([results_orig[i], results_retiled[i]])
+            nms_idx = utils.non_max_suppression(img_results_retiled['rois'], img_results_retiled['scores'].reshape(-1, ), nms_threshold)
+            img_results_retiled = du.reduce_dict(img_results_retiled, nms_idx)
+        else:
+            # Use the masks from the original that do not overlap with the tiled version
+            # and let the tiled version take preference for non-border nuclei
+            overlap = np.sum(np.multiply(results_orig[i]['masks'], np.expand_dims(np.sum(results_retiled[i]['masks'], axis = 0), 0)), axis = (1, 2)) > 0
+            valid_orig = overlap == 0
+
+            #visualize.plot_multiple_images([du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[i]['masks'], 0, -1)), du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[i]['masks'][valid_orig, :, :], 0, -1))], nrows = 1, ncols = 2) 
+
+            results_orig[i]['masks'] = results_orig[i]['masks'][valid_orig]
+            results_orig[i]['scores'] = results_orig[i]['scores'][valid_orig]
+            results_orig[i]['rois'] = results_orig[i]['rois'][valid_orig]
+            results_orig[i]['class_ids'] = results_orig[i]['class_ids'][valid_orig]
+
+            img_results_retiled = du.concatenate_list_of_dicts([results_orig[i], results_retiled[i]])
+
+        # Reshape elements as required
+        img_results_retiled['masks'] = np.moveaxis(img_results_retiled['masks'], 0, -1)
+        img_results_retiled['class_ids'] = img_results_retiled['class_ids'].reshape(-1, )
+        img_results_retiled['scores'] = img_results_retiled['scores'].reshape(-1, )
+
+        results.append(img_results_retiled)
+
+
+    if False:
+        # Sanity checking...
+        visualize.plot_multiple_images([(images[0] * 255).astype(np.uint8), 
+                                    du.maskrcnn_mask_to_labels(np.moveaxis(results_retiled[0]['masks'], 0, -1)),
+                                    du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[0]['masks'], 0, -1)),
+                                    du.maskrcnn_mask_to_labels(results[0]['masks'])], 
+                                    ['img', 'tiled predictions (less borders)', 'orig predictions', 'combined predictions'], 1, 4)
+
+    return results
+
+
+def tile_image(img, grid):
+
+    grid_template, x, y, per_col, per_row, pad_col, pad_row = grid
+
+    tiled_img = np.zeros(grid_template.shape if img.ndim == 2 else grid_template.shape + (img.shape[-1],))
+    tiled_img[:img.shape[0], :img.shape[1]] = img
+
+    if img.ndim == 2:
+        tiled_output = [tiled_img[grid_template == i].reshape((x, y)) for i in range(1, int(grid_template.max() + 1))]
+    else:
+        tiled_output = [np.stack([_tiled_img[grid_template == i].reshape((x, y)) 
+                                    for _tiled_img in list(np.moveaxis(tiled_img, -1, 0))], axis = -1) 
+                        for i in range(1, int(grid_template.max() + 1))]
+
+    return tiled_output
+
+
+def create_tile_template(img_shape, grid_shape):
+
+    x, y = int(np.ceil(img_shape[0] / grid_shape[0])), int(np.ceil(img_shape[1] / grid_shape[1]))
+    per_col, per_row = grid_shape[0], grid_shape[1]
+    pad_col, pad_row = (x * grid_shape[0]) - img_shape[0], (y * grid_shape[1]) - img_shape[1]
+
+    single_tile = np.ones((x, y))
+
+    row = np.concatenate([single_tile * (i + 1) for i in range(per_row)], axis =1)
+    grid = np.concatenate([row + i for i in per_row * np.arange(per_col)], axis = 0)
+
+    return grid, x, y, per_col, per_row, pad_col, pad_row
 
 
 def create_model(_config, epoch = None):
@@ -139,27 +300,8 @@ def load_dataset_images(dataset, i, batch_size):
 def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False):
 
     # Recreate the model in inference mode
-    model = modellib.MaskRCNN(mode="inference", 
-                              config=_config,
-                              model_dir=_config.MODEL_DIR)
-
-    # Get path to saved weights
-    # Either set a specific path or find last trained weights
-    # model_path = os.path.join(ROOT_DIR, ".h5 file name here")
-    if epoch is not None:
-        model_path = model.find_last()[1][:-7] + '00' + str(epoch) + '.h5'
-    else:
-        model_path = model.find_last()[1]
-
-    # Load trained weights (fill in path to trained weights here)
-    assert model_path != "", "Provide path to trained weights"
-    print("Loading weights from ", model_path)
-    model.load_weights(model_path, by_name=True)
-
-    '''
-    load test dataset one by one. Note that masks are resized (back) in model.detect
-    rle2csv
-    '''        
+    model = create_model(_config, epoch)
+      
     ImageId = []
     EncodedPixels = []
     
@@ -351,6 +493,68 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
     f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
                                                     '_'.join([_config.NAME for _config in configs]), 
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False):
+    """
+    Predict masks for each image by splitting the original image up into tiles,
+    making predictions for these, and subsequently stitching them back together.
+    Only predict via tiling if the image area is > tile_threshold. Otherwise detect as normal.
+    """
+
+    # Recreate the model in inference mode
+    model = create_model(_config, epoch)
+      
+    ImageId = []
+    EncodedPixels = []
+    
+    # NB: we need to predict in batches of _config.BATCH_SIZE
+    # as there are layers within the model that have strides dependent on this.
+    for i in range(0, len(dataset.image_ids), _config.BATCH_SIZE):
+         # Load image
+        images = []
+        N = 0
+        for idx in range(i, i + _config.BATCH_SIZE):
+            if idx < len(dataset.image_ids):
+                N += 1
+                images.append(dataset.load_image(dataset.image_ids[idx]))
+            else:
+                images.append(images[-1])
+
+        # Run detection
+        # maskrcnn_detect_tiles if img_size > threshold else regular detection
+        # NB: We detect for all images in each case as we need to keep batch sizes consistent
+            
+        img_size = [np.product(img.shape[:2]) for img in images]
+        detect_tiles = [s > tile_threshold for s in img_size]
+
+        if np.any(detect_tiles):
+            r_tiles = maskrcnn_detect_tiles(model, images, grid_shape = grid_shape, nms_threshold = nms_threshold, nms_tiles = nms_tiles)
+
+        if not np.all(detect_tiles):
+            r_orig = model.detect(images)
+
+        r = [r_tiles[j] if detect_tiles[j] else r_orig[j] for j in range(len(detect_tiles))]
+
+        # Reduce to N images
+        for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
+
+            if j < N:   
+
+                masks = r[j]['masks'] #[H, W, N] instance binary masks
+                img_name = dataset.image_info[idx]['name']
+        
+                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, r[j]['scores'])
+                ImageId += ImageId_batch
+                EncodedPixels += EncodedPixels_batch
+
+
+    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
+                                                        _config.NAME, 
+                                                        str(epoch), 
+                                                        str(grid_shape[0]), 
+                                                        str(nms_threshold), 
+                                                        datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
 def predict_1():
@@ -606,7 +810,6 @@ def predict_18():
     predict_model(_config, base_test_dataset())
 
 
-
 def predict_19():
     #submission_DSB2018_512_512_True_8_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180326171446_
     #def train_resnet101_flips_alldata_minimask8():
@@ -619,6 +822,7 @@ def predict_19():
                                                     'vertical_flip': True})
 
     predict_model(_config, base_test_dataset())
+
 
 def predict_20():
     #submission_DSB2018_512_512_True_12_28_196__dim_o-tf-horiz-True-verti-True_0.5_None_20180326215454_
@@ -691,7 +895,6 @@ def predict_24():
                                                     'contrast_stretching': 10})
 
     predict_model(_config, base_test_dataset())
-
 
 
 def predict_25():
@@ -883,8 +1086,48 @@ def predict_32():
     predict_model(_config, dataset)
 
 
+def predict_33():
+    # submission_DSB2018_512_512_True_12_28_256_0.3_ent_2_2inv_dim_o-tf-horiz-True-verti-True_0.5_None_20180402211429_
+    #train_resnet101_flips_alldata_minimask12_double_invert_aug2():
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               identifier = '2inv',
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True},
+                               fn_load = 'load_image_gt_augment_2')
+
+    # Training dataset
+    dataset = DSB2018_Dataset(invert_type = 2)
+    dataset.add_nuclei(test_dir, 'test')
+    dataset.prepare()
+
+    predict_model(_config, dataset)
+
+
+def predict_34():
+    #
+    #train_resnet101_flips_alldata_minimask12_double_invert(): with maskrcnn_detect_tiles 
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               identifier = 'double_invert',
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True})
+
+    # Training dataset
+    dataset = DSB2018_Dataset(invert_type = 2)
+    dataset.add_nuclei(test_dir, 'test')
+    dataset.prepare()
+
+    predict_tiled_model(_config, dataset, tile_threshold = 512 * 512)
+
 def main():
-    predict_32()
+    predict_34()
 
 if __name__ == '__main__':
     main()
