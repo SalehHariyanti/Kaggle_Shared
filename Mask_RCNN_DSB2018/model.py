@@ -1269,6 +1269,11 @@ def load_image_gt_augment(dataset, config, image_id, augment=False,
     bbox = bbox[valid]
     class_ids = class_ids[valid]
 
+    # Store off avg mask-instance size in pixels
+    if config.mask_size_filename is not None:
+        mask_sizes = np.load(config.mask_size_filename)
+        np.save(config.mask_size_filename, np.append(mask_sizes, np.mean(np.sum(mask, axis = (0, 1)))))
+
     # Active classes
     # Different datasets have different classes, so track the
     # classes supported in the dataset of this image.

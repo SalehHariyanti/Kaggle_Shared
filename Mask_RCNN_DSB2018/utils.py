@@ -481,6 +481,7 @@ def resize_image2(image, min_dim=None, max_dim=None, padding=False):
         window = (top_pad, left_pad, h + top_pad, w + left_pad)
     return image, window, scale, padding
 
+
 def resize_mask(mask, scale, padding):
     """Resizes a mask using the given scale and padding.
     Typically, you get the scale and padding from resize_image() to

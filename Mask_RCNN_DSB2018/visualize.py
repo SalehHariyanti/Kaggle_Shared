@@ -17,10 +17,10 @@ import matplotlib.patches as patches
 import matplotlib.lines as lines
 from matplotlib.patches import Polygon
 import IPython.display
-import PIL
-import cv2
 
 import utils
+import PIL
+import cv2
 
 
 ############################################################
@@ -443,6 +443,7 @@ def display_weight_stats(model):
                 "{:+9.4f}".format(w.std()),
             ])
     display_table(table)
+
 
 #### Add ons ####
 

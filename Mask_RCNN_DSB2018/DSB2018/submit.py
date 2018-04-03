@@ -14,6 +14,8 @@ import cv2
 import visualize
 import matplotlib.pyplot as plt
 
+import train
+
                     
 def base_test_dataset():
     dataset = DSB2018_Dataset()
@@ -104,13 +106,16 @@ def maskrcnn_detect_scale(model, images, threshold, scales = [0.6, 0.8, 1.2, 1.4
     return results
 
 
-def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.3):
+def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False):
     """
-    Splits images into tiles and combines results
+    Splits images into tiles and combines results.
+    If nms_tiles = True, the tiled results are combined with those for the original image.
+    If nms_tiles = False, tiled results that are not on the border are used, and combined with results for the original image that do not overlap with tiled masks.
     """
     
     n_images = len(images)
     n_grid = np.product(grid_shape)
+    border_pixel_threshold = 5
 
     # grid_data = (grid, x, y, per_col, per_row, pad_col, pad_row) for each image
     grid_data = [create_tile_template(img.shape, grid_shape) for img in images]
@@ -122,7 +127,7 @@ def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.
     images_tiled = [[images_tiled[j][i] for j in range(n_images)] for i in range(n_grid)]
     
     # Detect (results in orginal format)
-    results_tiles = [model.detect(np.array(imgs), verbose = 0) for imgs in images_tiled]
+    results_tiles = [model.detect(imgs, verbose = 0) for imgs in images_tiled]
 
     # Combine back from tiles to original
     masks_retiled = [[]] * n_images
@@ -135,12 +140,23 @@ def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.
             # We will be ignoring any masks from the tiles that are too close to borders as these are unreliable.
             # (You will replace these with nuclei from the original mask)
             border_pixels = np.ones(results_tiles[j][i]['masks'].shape)
-            border_pixels[5 : -5, 5 : -5] = 0
+            border_pixels[border_pixel_threshold : -border_pixel_threshold, border_pixel_threshold : -border_pixel_threshold] = 0
 
             valid_mask = np.logical_and(np.sum(np.multiply(results_tiles[j][i]['masks'], border_pixels), axis = (0, 1)) == 0,
                                         np.sum(results_tiles[j][i]['masks'], axis = (0, 1)) > 0)
 
-            # visualize.plot_multiple_images([du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks']), du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks'][:, :, valid_mask])], nrows = 1, ncols = 2)
+            if False: 
+                #Sanity checking...
+                visualize.plot_multiple_images([(images[i]*255).astype(np.uint8),
+                                                (images[i]*255).astype(np.uint8),
+                                                du.maskrcnn_mask_to_labels(results_tiles[0][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[1][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[2][i]['masks']),
+                                                du.maskrcnn_mask_to_labels(results_tiles[3][i]['masks'])],
+                                               nrows = 3, ncols = 2)
+
+                visualize.plot_multiple_images([du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks']), 
+                                                du.maskrcnn_mask_to_labels(results_tiles[j][i]['masks'][:, :, valid_mask])], nrows = 1, ncols = 2)
 
             this_n_masks = np.sum(valid_mask)
 
@@ -176,13 +192,29 @@ def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.
     for r in results_orig:
         r['masks'] = np.moveaxis(r['masks'], -1, 0)
         
-    # Carry out non-maximum suppression to reduce results_flip for each image to a single set of results
+    # Reduce each image to a single set of results, combining the original with the tiled version
     results = []
-    for i in range(images.shape[0]):
+    for i in range(len(images)):
 
-        img_results_retiled = du.concatenate_list_of_dicts([results_orig[i], results_retiled[i]])
-        nms_idx = utils.non_max_suppression(img_results_retiled['rois'], img_results_retiled['scores'].reshape(-1, ), nms_threshold)
-        img_results_retiled = du.reduce_dict(img_results_retiled, nms_idx)
+        if nms_tiles:
+            # Carry out NMS of the original with the tiled version (less borders)
+            img_results_retiled = du.concatenate_list_of_dicts([results_orig[i], results_retiled[i]])
+            nms_idx = utils.non_max_suppression(img_results_retiled['rois'], img_results_retiled['scores'].reshape(-1, ), nms_threshold)
+            img_results_retiled = du.reduce_dict(img_results_retiled, nms_idx)
+        else:
+            # Use the masks from the original that do not overlap with the tiled version
+            # and let the tiled version take preference for non-border nuclei
+            overlap = np.sum(np.multiply(results_orig[i]['masks'], np.expand_dims(np.sum(results_retiled[i]['masks'], axis = 0), 0)), axis = (1, 2)) > 0
+            valid_orig = overlap == 0
+
+            #visualize.plot_multiple_images([du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[i]['masks'], 0, -1)), du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[i]['masks'][valid_orig, :, :], 0, -1))], nrows = 1, ncols = 2) 
+
+            results_orig[i]['masks'] = results_orig[i]['masks'][valid_orig]
+            results_orig[i]['scores'] = results_orig[i]['scores'][valid_orig]
+            results_orig[i]['rois'] = results_orig[i]['rois'][valid_orig]
+            results_orig[i]['class_ids'] = results_orig[i]['class_ids'][valid_orig]
+
+            img_results_retiled = du.concatenate_list_of_dicts([results_orig[i], results_retiled[i]])
 
         # Reshape elements as required
         img_results_retiled['masks'] = np.moveaxis(img_results_retiled['masks'], 0, -1)
@@ -194,11 +226,11 @@ def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.
 
     if False:
         # Sanity checking...
-        visualize.plot_multiple_images([orig_images[0], 
+        visualize.plot_multiple_images([(images[0] * 255).astype(np.uint8), 
                                     du.maskrcnn_mask_to_labels(np.moveaxis(results_retiled[0]['masks'], 0, -1)),
                                     du.maskrcnn_mask_to_labels(np.moveaxis(results_orig[0]['masks'], 0, -1)),
                                     du.maskrcnn_mask_to_labels(results[0]['masks'])], 
-                                    ['img', 'tiled predictions', 'orig predictions', 'nms predictions'], 1, 4)
+                                    ['img', 'tiled predictions (less borders)', 'orig predictions', 'combined predictions'], 1, 4)
 
     return results
 
@@ -465,7 +497,12 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_tiled_model(_config, dataset, epoch = None, grid_shape = (2, 2), nms_threshold = 0.3):
+def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False):
+    """
+    Predict masks for each image by splitting the original image up into tiles,
+    making predictions for these, and subsequently stitching them back together.
+    Only predict via tiling if the image area is > tile_threshold. Otherwise detect as normal.
+    """
 
     # Recreate the model in inference mode
     model = create_model(_config, epoch)
@@ -487,7 +524,19 @@ def predict_tiled_model(_config, dataset, epoch = None, grid_shape = (2, 2), nms
                 images.append(images[-1])
 
         # Run detection
-        r = maskrcnn_detect_tiles(model, images, grid_shape = grid_shape, nms_threshold = nms_threshold)
+        # maskrcnn_detect_tiles if img_size > threshold else regular detection
+        # NB: We detect for all images in each case as we need to keep batch sizes consistent
+            
+        img_size = [np.product(img.shape[:2]) for img in images]
+        detect_tiles = [s > tile_threshold for s in img_size]
+
+        if np.any(detect_tiles):
+            r_tiles = maskrcnn_detect_tiles(model, images, grid_shape = grid_shape, nms_threshold = nms_threshold, nms_tiles = nms_tiles)
+
+        if not np.all(detect_tiles):
+            r_orig = model.detect(images)
+
+        r = [r_tiles[j] if detect_tiles[j] else r_orig[j] for j in range(len(detect_tiles))]
 
         # Reduce to N images
         for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
@@ -510,557 +559,14 @@ def predict_tiled_model(_config, dataset, epoch = None, grid_shape = (2, 2), nms
                                                         datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_1():
+def predict_experiment(fn_experiment, fn_predict = 'predict_model'):
+    _config, dataset = fn_experiment(training=False)
+    globals()[fn_predict](_config, dataset)
 
-    _config = mask_rcnn_config()
-    predict_model(_config, dataset = base_test_dataset(), epoch = None)
-
-
-def predict_2():
-
-    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
-                               val_data_root = [train_dir] + supplementary_dir,
-                               init_with = 'imagenet',
-                               architecture = 'resnet50',
-                               augmentation_dict = {'dim_ordering': 'tf', 
-                                                    'fill_mode': 'reflect',
-                                                    'horizontal_flip': True, 
-                                                    'vertical_flip': True, 
-                                                    'rotation_range': 45, 
-                                                    'shear_range': 0.3,
-                                                    'zoom_range': [0.9, 1]})
-
-
-    predict_model(_config, dataset = base_test_dataset())
-
-
-def predict_3():
-
-    _config = mask_rcnn_config(augmentation_dict = {'dim_ordering': 'tf', 
-                                                'fill_mode': 'reflect',
-                                                'horizontal_flip': True, 
-                                                'vertical_flip': True, 
-                                                'rotation_range': 45, 
-                                                'shear_range': 0.3,
-                                                'zoom_range': [0.9, 1]})
-
-    predict_model(_config, dataset = base_test_dataset())
-
-
-def predict_4():
-
-    _config = mask_rcnn_config(augmentation_dict = {'dim_ordering': 'tf'})
-
-    predict_model(_config, dataset = base_test_dataset())
-
-
-def predict_5():
-    # submission_DSB2018_512_512_dim_o-tf-horiz-True-verti-True_None_20180319182416_.csv
-    # train_resnet101_flips
-    _config = mask_rcnn_config(init_with = 'coco',
-                            architecture = 'resnet101',
-                            augmentation_dict = {'dim_ordering': 'tf',
-                                                'horizontal_flip': True,
-                                                'vertical_flip': True})
-
-    predict_model(_config)
-
-
-def predict_6():
-    # train_resnet101_flips, augmented detection with nms_threshold = 0.5
-    # submission_DSB2018_512_512_dim_o-tf-horiz-True-verti-True_None_20180320125310_
-    _config = mask_rcnn_config(init_with = 'coco',
-                            architecture = 'resnet101',
-                            augmentation_dict = {'dim_ordering': 'tf',
-                                                'horizontal_flip': True,
-                                                'vertical_flip': True})
-
-    predict_model(_config, dataset = base_test_dataset(), augment = True, nms_threshold = 0.5)
-
-
-def predict_7():
-    # train_resnet101_flips, augmented detection with nms_threshold = 0.3
-    #submission_DSB2018_512_512_dim_o-tf-horiz-True-verti-True_None_20180320130000_
-    _config = mask_rcnn_config(init_with = 'coco',
-                            architecture = 'resnet101',
-                            augmentation_dict = {'dim_ordering': 'tf',
-                                                'horizontal_flip': True,
-                                                'vertical_flip': True})
-
-    predict_model(_config, dataset = base_test_dataset(), augment = True, nms_threshold = 0.3)
-
-
-def predict_8():
-   # train_resnet101_flips_by_colour_inc_suppdata
-   #submission_DSB2018_512_512_colour_1_dim_o-tf-horiz-True-verti-True_DSB2018_512_512_colour_2_dim_o-tf-horiz-True-verti-True_None_20180322183515_
-
-    config_grey = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               train_data_root = [train_dir] + supplementary_dir,
-                               val_data_root = [train_dir] + supplementary_dir,
-                               identifier = 'colour_1')
-
-    config_colour = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               train_data_root = [train_dir] + supplementary_dir,
-                               val_data_root = [train_dir] + supplementary_dir,
-                               identifier = 'colour_2')
-
-
-    dataset_grey = DSB2018_Dataset()
-    dataset_grey.add_nuclei(test_dir, 'test', target_colour_id = np.array([1]))
-    dataset_grey.prepare()
-
-    dataset_colour = DSB2018_Dataset()
-    dataset_colour.add_nuclei(test_dir, 'test', target_colour_id = np.array([2]))
-    dataset_colour.prepare()
-
-    datasets = [dataset_grey, dataset_colour]
-    configs = [config_grey, config_colour]
-
-    predict_multiple(configs, datasets) 
-
-
-def predict_9():
-    # submission_DSB2018_512_512__dim_o-tf-horiz-True-verti-True-y_gau--0.25_None_20180323085451_.csv
-    # train_resnet101_flips_yblur():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True,
-                                                    'y_gaussian_blur': [-0.25, 0.25]})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_10():
-    # submission_DSB2018_512_512__dim_o-tf-horiz-True-verti-True_None_20180323141239_.csv
-    # train_resnet101_flips_alldata():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_11():
-    #submission_DSB2018_512_512__dim_o-tf-horiz-True-verti-True_0.8_None_20180323193035_
-    # train_resnet101_flips_alldata_augcrop0p8():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               augmentation_crop = 0.8)
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_12():
-    #submission_DSB2018_512_512_False_400__dim_o-tf-horiz-True-verti-True_0.5_None_20180324145831_
-    # train_resnet101_flips_alldata_maxgt400_minimaskFalse():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               max_gt_instances = 400,
-                               use_mini_mask = False,
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_13():
-    # def train_resnet101_flips_alldata():
-    # but with cropping ranges of 30-90% of image size
-    #submission_DSB2018_512_512_True_56_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180324213134_
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-    predict_model(_config, base_test_dataset())
-
-
-def predict_14():
-    #submission_DSB2018_512_512_True_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180325091000_
-    #def train_resnet101_flips_alldata_minimask28():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 28,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_15():
-    #submission_DSB2018_512_512_True_56_196__dim_o-tf-horiz-True-verti-True_0.5_None_20180325091259_
-    #def train_resnet101_flips_alldata_maxgt196():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               max_gt_instances = 196,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_16():
-    #submission_DSB2018_512_512_True_18_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180325223651_
-    #def train_resnet101_flips_alldata_minimask18():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 18,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-    predict_model(_config, base_test_dataset())
-
-
-def predict_17():
-    #submission_DSB2018_512_512_True_56_128__dim_o-tf-horiz-True-verti-True_0.5_None_20180325223949_
-    #def train_resnet101_flips_alldata_maxgt128():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               max_gt_instances = 128,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-    predict_model(_config, base_test_dataset())
-
-
-def predict_18():
-    #submission_DSB2018_512_512_True_12_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180326101255_
-    # def train_resnet101_flips_alldata_minimask12():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_19():
-    #submission_DSB2018_512_512_True_8_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180326171446_
-    #def train_resnet101_flips_alldata_minimask8():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 8,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_20():
-    #submission_DSB2018_512_512_True_12_28_196__dim_o-tf-horiz-True-verti-True_0.5_None_20180326215454_
-    #def train_resnet101_flips_alldata_minimask12_maxgt196():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               max_gt_instances = 196,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_21():
-    #submission_DSB2018_512_512_True_12_16_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180327140627_
-    #def train_resnet101_flips_alldata_minimask12_mask16():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               mask_shape = 16,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_22():
-    # submission_DSB2018_512_512_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180327143836_
-    # def train_resnet101_flips_alldata_minimask12() with maskrcnn_detect_scale
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset(), augment_scale = True)
-
-
-def predict_23():
-    # submission_DSB2018_512_512_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180327151512_
-    # def train_resnet101_flips_alldata_minimask12() with img_pad = 20
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset(), img_pad = 20)
-
-
-def predict_24():
-    #submission_DSB2018_512_512_True_12_28_256__contr-10-dim_o-tf-horiz-True-verti-True_0.5_None_20180328085021_
-    #train_resnet101_flips_alldata_minimask12_augcontrast()
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True,
-                                                    'contrast_stretching': 10})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_25():
-    #submission_DSB2018_512_512_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180328085322_
-    #def train_resnet101_flips_alldata_minimask12_ep50():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_26():
-    
-   # train_resnet101_flips_by_colour_inc_suppdata
-   #submission_nms_DSB2018_512_512_True_56_28_256_colour_1_dim_o-tf-horiz-True-verti-True_0.5_DSB2018_512_512_True_56_28_256_colour_2_dim_o-tf-horiz-True-verti-True_0.5_None_20180328125128_
-
-    config_grey = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               train_data_root = [train_dir] + supplementary_dir,
-                               val_data_root = [train_dir] + supplementary_dir,
-                               identifier = 'colour_1')
-
-    config_colour = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               train_data_root = [train_dir] + supplementary_dir,
-                               val_data_root = [train_dir] + supplementary_dir,
-                               identifier = 'colour_2')
-
-
-    dataset_grey = DSB2018_Dataset()
-    dataset_grey.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset_grey.prepare()
-
-    dataset_colour = DSB2018_Dataset()
-    dataset_colour.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset_colour.prepare()
-
-    datasets = [dataset_grey, dataset_colour]
-    configs = [config_grey, config_colour]
-
-    predict_nms(configs, datasets) 
-
-
-def predict_27():
-    #submission_DSB2018_768_768_True_12_28_256__dim_o-tf-horiz-True-verti-True_0.5_None_20180329084920_
-    #def train_resnet101_flips_alldata_minimask12_size768():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               image_max_dim = 768,
-                               image_min_dim = 768, 
-                               images_per_gpu = 1,                              
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_28():
-    #
-    #NMS combination of def train_resnet101_flips_alldata_minimask12_size768() and train_resnet101_flips_alldata_minimask12()
-    
-    configs = [mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True}),
-               mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               image_max_dim = 768,
-                               image_min_dim = 768, 
-                               images_per_gpu = 1,                              
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})]
-
-    dataset1 = DSB2018_Dataset()
-    dataset1.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset1.prepare()
-
-    dataset2 = DSB2018_Dataset()
-    dataset2.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset2.prepare()
-
-    datasets = [dataset1, dataset2]
-
-    predict_nms(configs, datasets) 
-
-
-def predict_29():
-    #submission_DSB2018_512_512_True_12_28_256_0.5__dim_o-tf-horiz-True-verti-True_0.5_None_20180402101507_
-    #train_resnet101_flips_alldata_minimask12_detectionnms0_5():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               detection_nms_threshold = 0.5,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    predict_model(_config, base_test_dataset())
-
-
-def predict_30():
-    #submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_
-    #train_resnet101_flips_alldata_minimask12_double_invert():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               identifier = 'double_invert',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    # Training dataset
-    dataset = DSB2018_Dataset(invert_type = 2)
-    dataset.add_nuclei(test_dir, 'test')
-    dataset.prepare()
-
-    predict_model(_config, dataset)
-
-
-def predict_31():
-    #submission_nms_DSB2018_512_512_True_12_28_256_0.3__dim_o-tf-horiz-True-verti-True_0.5_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402105157_
-    #NMS combination of def train_resnet101_flips_alldata_minimask12_double_invert() and train_resnet101_flips_alldata_minimask12()
-    
-    configs = [mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True}),
-               mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               identifier = 'double_invert',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})]
-
-    dataset1 = DSB2018_Dataset(invert_type = 1)
-    dataset1.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset1.prepare()
-
-    dataset2 = DSB2018_Dataset(invert_type = 2)
-    dataset2.add_nuclei(test_dir, 'test', shuffle = False)
-    dataset2.prepare()
-
-    datasets = [dataset1, dataset2]
-
-    predict_nms(configs, datasets) 
-
-
-def predict_32():
-    # submission_DSB2018_512_512_True_12_28_256_0.2_load_image_gt_augment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402152908_
-    #train_resnet101_flips_alldata_minimask12_double_invert_detectionnms0_2():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               identifier = 'double_invert',
-                               detection_nms_threshold = 0.2,
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True})
-
-    # Training dataset
-    dataset = DSB2018_Dataset(invert_type = 2)
-    dataset.add_nuclei(test_dir, 'test')
-    dataset.prepare()
-
-    predict_model(_config, dataset)
-
-
-def predict_33():
-    # 
-    #train_resnet101_flips_alldata_minimask12_double_invert_aug2():
-
-    _config = mask_rcnn_config(init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               identifier = '2inv',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True},
-                               fn_load = 'load_image_gt_augment_2')
-
-    # Training dataset
-    dataset = DSB2018_Dataset(invert_type = 2)
-    dataset.add_nuclei(test_dir, 'test')
-    dataset.prepare()
-
-    predict_model(_config, dataset)
 
 def main():
-    predict_33()
+    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3)
+
 
 if __name__ == '__main__':
     main()

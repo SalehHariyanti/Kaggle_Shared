@@ -22,10 +22,13 @@ from settings import train_dir, test_dir, data_dir
 from tensorflow.python.client import device_lib
 
 def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+    if os.name == 'nt':
+        return ['gpu1']
+    else:
+        local_device_protos = device_lib.list_local_devices()
+        return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
-base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
    
 class mask_rcnn_config(config.Config):
 
@@ -46,7 +49,8 @@ class mask_rcnn_config(config.Config):
                  identifier = '',
                  augmentation_crop = 0.5,
                  augmentation_dict = {'dim_ordering': 'tf', 'horizontal_flip': True, 'vertical_flip': True},
-                 fn_load = 'load_image_gt_augment'):
+                 fn_load = 'load_image_gt_augment',
+                 mask_size_dir = None):
 
         self.train_data_root = train_data_root
         self.val_data_root = val_data_root
@@ -174,6 +178,15 @@ class mask_rcnn_config(config.Config):
         self.fn_load = fn_load
 
         self.NAME = self.get_name()
+
+        # Set up mask size saving if requested
+        if mask_size_dir is not None:
+            self.mask_size_filename = os.path.join(mask_size_dir, ''.join((self.NAME, '.npy')))
+            if not os.path.exists(self.mask_size_filename):
+                mask_size = np.array([])
+                np.save(self.mask_size_filename, mask_size)
+        else:
+            self.mask_size_filename = None
 
 
     def to_string(self, x):
