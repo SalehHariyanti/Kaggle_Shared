@@ -642,7 +642,7 @@ def train_resnet101_flips_alldata_minimask12_detectionnms0_5():
                 layers='all')
 
 
-def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3():
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3(training=True):
 
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
@@ -653,25 +653,32 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3():
                                                     'vertical_flip': True,
                                                     'rots' : True })
 
-    # Training dataset
-    dataset_train = DSB2018_Dataset()
-    dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
-    dataset_train.prepare()
+    if training:
+        # Training dataset
+        dataset_train = DSB2018_Dataset()
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+        dataset_train.prepare()
 
-    # Validation dataset
-    dataset_val = DSB2018_Dataset()
-    dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
-    dataset_val.prepare()
+        # Validation dataset
+        dataset_val = DSB2018_Dataset()
+        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+        dataset_val.prepare()
 
-    # Create model in training mode
-    model = modellib.MaskRCNN(mode="training", config=_config,
-                              model_dir=_config.MODEL_DIR)
-    model = load_weights(model, _config)
-    
-    model.train(dataset_train, dataset_val,
-                learning_rate=_config.LEARNING_RATE,
-                epochs=50,
-                layers='all')
+        # Create model in training mode
+        model = modellib.MaskRCNN(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+        
+        model.train(dataset_train, dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=50,
+                    layers='all')
+    else:
+        dataset_test = DSB2018_Dataset()
+        dataset_test.add_nuclei(_config.test_data_root, 'test')
+        dataset_test.prepare()
+        return _config, dataset_test
+
 
 def train_resnet101_flips_alldata_minimask12_double_invert():
 
