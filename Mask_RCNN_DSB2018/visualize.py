@@ -19,6 +19,8 @@ from matplotlib.patches import Polygon
 import IPython.display
 
 import utils
+import PIL
+import cv2
 
 
 ############################################################
