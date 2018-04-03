@@ -145,7 +145,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert_masksizes(training = 
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
-        return _config, dataset_test
+        return _config, dataset
 
 
 def main():

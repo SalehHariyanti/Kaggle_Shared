@@ -559,13 +559,72 @@ def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid
                                                         datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
+def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3):
+    """
+    Predict in two phases:
+    1) predict as normal and estimate avg nucleus size
+    2) rescale test images according to the model's training avg nucleus size and predict again
+    """
+    # Recreate the model in inference mode
+    model = create_model(_config, epoch)
+
+    # Retrieve the avg mask size
+    assert _config.mask_size_filename is not None
+    model_mask_size = np.load(_config.mask_size_filename)
+    model_mask_size = np.mean(model_mask_size[np.logical_not(np.isnan(model_mask_size))])
+      
+    ImageId = []
+    EncodedPixels = []
+    
+    # NB: we need to predict in batches of _config.BATCH_SIZE
+    # as there are layers within the model that have strides dependent on this.
+    for i in range(0, len(dataset.image_ids), _config.BATCH_SIZE):
+         # Load image
+        images = []
+        N = 0
+        for idx in range(i, i + _config.BATCH_SIZE):
+            if idx < len(dataset.image_ids):
+                N += 1
+                images.append(dataset.load_image(dataset.image_ids[idx]))
+            else:
+                images.append(images[-1])
+
+        # Run detection
+        _r = model.detect(images, verbose=0)
+        
+        # Estimate the mask size 
+        avg_mask_size = []
+        for j in range(_config.BATCH_SIZE):                 
+            masks = _r[j]['masks'] 
+            #NB: need to resize to model input scale so that is comparable with recorded model_mask_size
+            _, window, scale, padding = utils.resize_image(images[j], min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING)
+            resized_masks = utils.resize_mask(masks, scale, padding)
+            avg_mask_size.append(np.mean(np.sum(resized_masks, axis = (0, 1))))
+
+        # Detect again, but with images scaled according to predicted mask size
+        r = model.detect(images, verbose = 0, mask_scale = [np.sqrt(model_mask_size / x) for x in avg_mask_size])
+
+        for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
+
+            if j < N:   
+
+                masks = r[j]['masks'] #[H, W, N] instance binary masks
+                img_name = dataset.image_info[idx]['name']
+        
+                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, r[j]['scores'])
+                ImageId += ImageId_batch
+                EncodedPixels += EncodedPixels_batch
+
+    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_scaled', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
 def predict_experiment(fn_experiment, fn_predict = 'predict_model'):
     _config, dataset = fn_experiment(training=False)
     globals()[fn_predict](_config, dataset)
 
 
 def main():
-    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3)
+    predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_masksizes, 'predict_scaled_model')
 
 
 if __name__ == '__main__':

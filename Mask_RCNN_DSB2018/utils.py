@@ -431,15 +431,14 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
     return image, window, scale, padding
 
 
-def resize_image2(image, min_dim=None, max_dim=None, padding=False):
+def resize_image_scaled(image, scale, min_dim=None, max_dim=None):
     """
-    Resizes an image keeping the aspect ratio.
+    Resizes an image to a given scale.
 
-    min_dim: if provided, resizes the image such that it's smaller
-        dimension == min_dim
+    If resizing to this scale exceeds max_dim then the image is rescaled to max_dim
+
     max_dim: if provided, ensures that the image longest side doesn't
         exceed this value.
-    padding: If true, pads image with zeros so it's size is max_dim x max_dim
 
     Returns:
     image: the resized image
@@ -450,15 +449,10 @@ def resize_image2(image, min_dim=None, max_dim=None, padding=False):
     scale: The scale factor used to resize the image
     padding: Padding added to the image [(top, bottom), (left, right), (0, 0)]
     """
-    # Default window (y1, x1, y2, x2) and default scale == 1.
+    # Default window (y1, x1, y2, x2)
     h, w = image.shape[:2]
     window = (0, 0, h, w)
-    scale = 1
-
-    # Scale?
-    if min_dim:
-        # Scale up but not down
-        scale = max(1, min_dim / min(h, w))
+    
     # Does it exceed max dim?
     if max_dim:
         image_max = max(h, w)
@@ -466,19 +460,19 @@ def resize_image2(image, min_dim=None, max_dim=None, padding=False):
             scale = max_dim / image_max
     # Resize image and mask
     if scale != 1:
-        image = scipy.misc.imresize(
-            image, (round(h * scale), round(w * scale)), interp='nearest')
-    # Need padding?
-    if padding:
-        # Get new height and width
-        h, w = image.shape[:2]
-        top_pad = (max_dim - h) // 2
-        bottom_pad = max_dim - h - top_pad
-        left_pad = (max_dim - w) // 2
-        right_pad = max_dim - w - left_pad
-        padding = [(top_pad, bottom_pad), (left_pad, right_pad), (0, 0)]
-        image = np.pad(image, padding, mode='constant', constant_values=0)
-        window = (top_pad, left_pad, h + top_pad, w + left_pad)
+        image = scipy.misc.imresize(image, (int(round(h * scale)), int(round(w * scale))))
+
+    # Padding
+    # Get new height and width
+    h, w = image.shape[:2]
+    top_pad = (max_dim - h) // 2
+    bottom_pad = max_dim - h - top_pad
+    left_pad = (max_dim - w) // 2
+    right_pad = max_dim - w - left_pad
+    padding = [(top_pad, bottom_pad), (left_pad, right_pad), (0, 0)]
+    image = np.pad(image, padding, mode='constant', constant_values=0)
+    window = (top_pad, left_pad, h + top_pad, w + left_pad)
+
     return image, window, scale, padding
 
 

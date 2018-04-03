@@ -32,6 +32,13 @@ supplementary_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                      os.path.join(base_dir, 'train_external', 'nsb'),
                      os.path.join(base_dir, 'train_external', 'nsb_crop')]
 
+
+group_id_file = os.path.join(data_dir, 'data_ids.csv')
+if not os.path.exists(group_id_file):
+    from clustering_functions import run
+    print("Generating {}".format(group_id_file))
+    run(group_id_file)
+
 train_group_id_file = os.path.join(data_dir, 'train_data_ids.csv')
 if not os.path.exists(train_group_id_file):
     from clustering_functions import run
