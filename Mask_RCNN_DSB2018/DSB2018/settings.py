@@ -8,8 +8,7 @@ import keras.backend as K
 from keras.backend.tensorflow_backend import set_session
 import tensorflow
 
-# CONFIG: Set to True for fergusoci
-if False:
+if os.name == 'nt':
     config = tensorflow.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     config.gpu_options.allow_growth = True
     config.gpu_options.per_process_gpu_memory_fraction = 0.7
@@ -20,7 +19,7 @@ K.set_image_dim_ordering('tf')
 K.set_image_data_format('channels_last')
 
 # Directory set up
-base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 data_dir = os.path.join(base_dir, 'data')
 submissions_dir = os.path.join(base_dir, 'submissions')
@@ -44,4 +43,3 @@ if not os.path.exists(test_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(test_group_id_file))
     run(test_group_id_file, [test_dir])
-

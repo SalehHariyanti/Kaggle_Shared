@@ -22,10 +22,13 @@ from settings import train_dir, test_dir, data_dir
 from tensorflow.python.client import device_lib
 
 def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+    if os.name == 'nt':
+        return ['gpu1']
+    else:
+        local_device_protos = device_lib.list_local_devices()
+        return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
-base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
    
 class mask_rcnn_config(config.Config):
 
