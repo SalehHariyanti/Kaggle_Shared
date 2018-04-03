@@ -2791,6 +2791,7 @@ class XY_ImageDataGenerator(object):
                  cval=0.,
                  horizontal_flip=False,
                  vertical_flip=False,
+                 rots=False,
                  rescale=None,
                  hsv_augmentation=False,
                  random_crop_shape = False,
@@ -2954,6 +2955,13 @@ class XY_ImageDataGenerator(object):
                 x = flip_axis(x, img_row_index)
                 if y is not None:
                     y = [flip_axis(_y, img_row_index) for _y in y]
+
+        if self.rots:
+            rot90_times = np.random.randint(0,4)
+            if rot90_times > 0:
+                x = np.rot90(x, rot90_times, (0,1))
+                if y is not None:
+                    y = [np.rot90(_y, rot90_times, (0,1)) for _y in y]
 
         if self.random_crop_shape:
             if np.random.random() < 0.5:

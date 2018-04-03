@@ -642,6 +642,37 @@ def train_resnet101_flips_alldata_minimask12_detectionnms0_5():
                 layers='all')
 
 
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3():
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               detection_nms_threshold = 0.3,
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True,
+                                                    'rots' : True })
+
+    # Training dataset
+    dataset_train = DSB2018_Dataset()
+    dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+    dataset_train.prepare()
+
+    # Validation dataset
+    dataset_val = DSB2018_Dataset()
+    dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+    dataset_val.prepare()
+
+    # Create model in training mode
+    model = modellib.MaskRCNN(mode="training", config=_config,
+                              model_dir=_config.MODEL_DIR)
+    model = load_weights(model, _config)
+    
+    model.train(dataset_train, dataset_val,
+                learning_rate=_config.LEARNING_RATE,
+                epochs=50,
+                layers='all')
+
 def train_resnet101_flips_alldata_minimask12_double_invert():
 
     _config = mask_rcnn_config(init_with = 'coco',
@@ -865,7 +896,7 @@ def trainsupplementary_val_trainsupplementary_res50_imagenet():
 
 
 def main():
-    train_resnet101_flips_alldata_minimask12_double_invert_aug2()
+    train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3()
 
 if __name__ == '__main__':
     main()
