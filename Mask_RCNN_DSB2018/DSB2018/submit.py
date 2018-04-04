@@ -299,7 +299,12 @@ def load_dataset_images(dataset, i, batch_size):
     return images
 
 
-def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False):
+def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False, save_predictions = False, create_submission = True):
+
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, _config.NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
 
     # Recreate the model in inference mode
     model = create_model(_config, epoch)
@@ -364,11 +369,22 @@ def predict_model(_config, dataset, epoch = None, augment_flips = False, augment
                     class_names = ['background', 'nucleus']
                     visualize.display_instances((images[j] * 255).astype(np.uint8), r[j]['rois'], r[j]['masks'], r[j]['class_ids'], class_names, r[j]['scores'], figsize = (8, 8))
                     
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
-    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_multiple(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3):
+def predict_multiple(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, save_predictions = False, create_submission = True):
+
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
 
     ImageId = []
     EncodedPixels = []
@@ -434,14 +450,26 @@ def predict_multiple(configs, datasets, epoch = None, augment_flips = False, aug
                     if False:
                         class_names = ['background', 'nucleus']
                         visualize.display_instances((images[j] * 255).astype(np.uint8), r[j]['rois'], r[j]['masks'], r[j]['class_ids'], class_names, r[j]['scores'], figsize = (8, 8))
-                    
 
-    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
+                    if save_predictions:
+                        # Extract final masks from EncodedPixels_batch here and save
+                        # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                        save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+
+
+    if create_submission:                   
+
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
                                                         '_'.join([_config.NAME for _config in configs]), 
                                                         str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3):
+def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, save_predictions = False, create_submission = True):
+
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
 
     ImageId = []
     EncodedPixels = []
@@ -491,18 +519,29 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
                     class_names = ['background', 'nucleus']
                     visualize.display_instances((images[j] * 255).astype(np.uint8), rois, masks, np.ones(scores.shape, dtype = np.int), class_names, scores, figsize = (8, 8))
                     
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
-    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
                                                     '_'.join([_config.NAME for _config in configs]), 
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False):
+def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False, save_predictions = False, create_submission = True):
     """
     Predict masks for each image by splitting the original image up into tiles,
     making predictions for these, and subsequently stitching them back together.
     Only predict via tiling if the image area is > tile_threshold. Otherwise detect as normal.
     """
+
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, _config.NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
 
     # Recreate the model in inference mode
     model = create_model(_config, epoch)
@@ -550,8 +589,14 @@ def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
-    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
                                                         _config.NAME, 
                                                         str(epoch), 
                                                         str(grid_shape[0]), 
@@ -559,12 +604,18 @@ def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid
                                                         datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3):
+def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3, save_predictions = False, create_submission = True):
     """
     Predict in two phases:
     1) predict as normal and estimate avg nucleus size
     2) rescale test images according to the model's training avg nucleus size and predict again
     """
+
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, _config.NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
+
     # Recreate the model in inference mode
     model = create_model(_config, epoch)
 
@@ -615,7 +666,29 @@ def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3):
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
-    f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_scaled', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_scaled', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def save_model_predictions(EncodedPixels_batch, mask_shape, image_info):
+    """
+    Saves labels from predictions
+    """
+    labels = du.labels_from_rles(EncodedPixels_batch, mask_shape)
+                    
+    mosaic_id = image_info['mosaic_id'] if 'mosaic_id' in image_info else 'None'
+    mosaic_position = image_info['mosaic_position'] if 'mosaic_position' in image_info else 'None'
+    save_filename = os.path.join(save_dir, '_'.join((str(mosaic_id), str(mosaic_position), image_info['name'], '.npy')))
+
+    np.save(save_filename, labels)
+
+    return
 
 
 def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):

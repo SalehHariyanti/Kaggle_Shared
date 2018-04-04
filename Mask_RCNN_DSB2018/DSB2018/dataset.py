@@ -67,7 +67,7 @@ class DSB2018_Dataset(utils.Dataset):
             image_ids = [os.path.split(name)[-1] for name in image_names]
 
             # Get ids
-            colour_id, group_id = get_ids(image_ids)
+            colour_id, mosaic_id, mosaic_position = get_ids(image_ids)
 
             # Strip down to target colours only
             if target_colour_id is not None:
@@ -85,6 +85,8 @@ class DSB2018_Dataset(utils.Dataset):
                     mask_dir = mask_dirs[i],
                     name = image_ids[i],
                     colour_id = colour_id[i],
+                    mosaic_id = mosaic_id[i],
+                    mosaic_position = mosaic_position[i],
                     is_mosaic = False
                     )
         else:
@@ -96,7 +98,6 @@ class DSB2018_Dataset(utils.Dataset):
                     name = os.path.split(image_name)[-1],
                     is_mosaic = True
                     )
-
       
     def get_cache_dir(self, is_mask):
         return os.path.join(data_dir, '_'.join(('maskrcnn_mask_cache' if is_mask else 'maskrcnn_image_cache', str(self.invert_type))))
@@ -250,7 +251,8 @@ def get_ids(file_id):
     mosaic_df = pd.concat([train_df, supplementary_df, test_df])
 
     mosaic_file_id = np.array(mosaic_df['img_id'])
-    mosaic_id = np.array(mosaic_df['mosaic_idx'])
+    mosaic_idx = np.array(mosaic_df['mosaic_idx'])
+    mosaic_position = np.array(mosaic_df['mosaic_position'])
     target_id = np.array(mosaic_df['target_id'])
 
     file_id = np.array(file_id)
@@ -259,19 +261,19 @@ def get_ids(file_id):
 
     # Assign a mosaic id to each file.
     # In cases where no mosaic id assign it a single value.
-    group_id = np.zeros(file_id.shape, dtype = np.int)
+    mosaic_id = np.zeros(file_id.shape, dtype = np.int)
+    mosaic_pos = np.empty(file_id.shape, dtype = object)
     target = np.zeros(file_id.shape, dtype = np.int)
 
-    group_id[A] = mosaic_id[B[A]]
+    mosaic_id[A] = mosaic_idx[B[A]]
     target[A] = target_id[B[A]]
+    mosaic_pos[A] = mosaic_position[B[A]]
 
     if np.any(np.logical_not(A)):
-        group_id[np.logical_not(A)] = np.cumsum(np.ones((sum(np.logical_not(A)),))) + group_id[A].max()
+        mosaic_id[np.logical_not(A)] = np.cumsum(np.ones((sum(np.logical_not(A)),))) + mosaic_id[A].max()
         target[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
 
-    group_id = group_id + 1 # Start at 1 rather than zero
-
-    return target, group_id
+    return target, mosaic_id, mosaic_pos
 
 def main():
     return
