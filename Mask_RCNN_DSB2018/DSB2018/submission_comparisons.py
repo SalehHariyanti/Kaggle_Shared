@@ -76,14 +76,14 @@ def compare_submissions(submission_files):
         labels = [labels_from_rles(sr[np.argwhere(sf == this_file).reshape(-1,)][0], test_img.shape[:2])[0] for sr, sf in zip(submissions_rles, submissions_filenames)]
         plot_multiple_images([test_img] + [image_with_labels(test_img, l) for l in labels] + [image_with_masks(test_img, labels)], 
                              ['img'] + ['_'.join(('submission', str(i), str(np.max(l)))) for i, l in enumerate(labels)] + ['img_with_masks'], 
-                             1, len(labels) + 2, greyscale = True)
+                             1, len(labels) + 2)
 
     return
 
 
 def main():
     # Overwrite filenames with the submissions you wish to compare
-    compare_submissions([os.path.join(submissions_dir, 'submission_scaled_DSB2018_512_512_True_12_28_256_0.3_gment_2inv_dim_o-tf-horiz-True-verti-True_0.5_None_20180403212626_.csv'),
+    compare_submissions([os.path.join(submissions_dir, 'submission_scaled_DSB2018_512_512_True_12_28_256_0.3_caled_2inv_dim_o-tf-horiz-True-verti-True_0.5_None_20180404153552_.csv'),
                          os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv')])
 
 if __name__ == '__main__':
