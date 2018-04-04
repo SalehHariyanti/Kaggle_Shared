@@ -282,7 +282,8 @@ def main():
         train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
     else:
         #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
-        train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
+        #train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
+        train_resnet101_flips_alldata_minimask12_double_invert()
 
 if __name__ == '__main__':
     main()

@@ -131,6 +131,8 @@ class DSB2018_Dataset(utils.Dataset):
                     image = image[:,:,:3]
                 # Grey and invert
                 image = skimage.color.rgb2gray(image.astype('uint8'))
+                # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+                image = (image * 255).astype(np.uint8)
                 if self.invert_type == 1:
                     image = self.invert_img(image)
                 elif self.invert_type == 2:
@@ -149,6 +151,8 @@ class DSB2018_Dataset(utils.Dataset):
                 image = image[:,:,:3]
             # Grey and invert
             image = skimage.color.rgb2gray(image.astype('uint8'))
+            # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+            image = (image * 255).astype(np.uint8)
             if self.invert_type == 1:
                 image = self.invert_img(image)
             elif self.invert_type == 2:
