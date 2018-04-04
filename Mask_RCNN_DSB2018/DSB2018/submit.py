@@ -618,13 +618,13 @@ def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3):
     f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_scaled', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_experiment(fn_experiment, fn_predict = 'predict_model'):
+def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
     _config, dataset = fn_experiment(training=False)
-    globals()[fn_predict](_config, dataset)
+    globals()[fn_predict](_config, dataset, **kwargs)
 
 
 def main():
-    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model')
+    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=25)
 
 
 if __name__ == '__main__':
