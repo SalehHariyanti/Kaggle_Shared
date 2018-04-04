@@ -42,6 +42,8 @@ class mask_rcnn_config(config.Config):
                  mini_mask_shape = 56,
                  mask_shape = 28,
                  detection_nms_threshold = 0.3,
+                 steps = 600,
+                 val_steps = 70,
                  train_data_root = train_dir,
                  val_data_root = train_dir,
                  test_data_root = test_dir,
@@ -83,8 +85,8 @@ class mask_rcnn_config(config.Config):
 
         # Total number of steps (batches of samples) to yield from generator before declaring one epoch finished and starting the next epoch.
         # typically be equal to the number of samples of your dataset divided by the batch size
-        self.STEPS_PER_EPOCH = 600// self.BATCH_SIZE
-        self.VALIDATION_STEPS = 70// self.BATCH_SIZE
+        self.STEPS_PER_EPOCH = steps// self.BATCH_SIZE
+        self.VALIDATION_STEPS = val_steps// self.BATCH_SIZE
 
         # Number of classes (including background)
         self.NUM_CLASSES = 1 + 1  # background + nucleis
