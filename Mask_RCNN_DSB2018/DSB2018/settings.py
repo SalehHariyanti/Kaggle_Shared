@@ -8,7 +8,7 @@ import keras.backend as K
 from keras.backend.tensorflow_backend import set_session
 import tensorflow
 
-if os.name == 'nt' and False:
+if os.name == 'nt':
     config = tensorflow.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     config.gpu_options.allow_growth = True
     config.gpu_options.per_process_gpu_memory_fraction = 0.7
@@ -32,18 +32,25 @@ supplementary_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                      os.path.join(base_dir, 'train_external', 'nsb'),
                      os.path.join(base_dir, 'train_external', 'nsb_crop')]
 
-
+"""
 group_id_file = os.path.join(data_dir, 'data_ids.csv')
 if not os.path.exists(group_id_file):
     from clustering_functions import run
     print("Generating {}".format(group_id_file))
     run(group_id_file)
+"""
 
 train_group_id_file = os.path.join(data_dir, 'train_data_ids.csv')
 if not os.path.exists(train_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(train_group_id_file))
     run(train_group_id_file, [train_dir])
+
+supplementary_group_id_file = os.path.join(data_dir, 'supplementary_data_ids.csv')
+if not os.path.exists(supplementary_group_id_file):
+    from clustering_functions import run
+    print("Generating {}".format(supplementary_group_id_file))
+    run(train_group_id_file, supplementary_dir)
 
 test_group_id_file = os.path.join(data_dir, 'test_data_ids.csv')
 if not os.path.exists(test_group_id_file):
