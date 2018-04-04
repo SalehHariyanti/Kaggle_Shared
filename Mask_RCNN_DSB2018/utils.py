@@ -403,6 +403,8 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
     h, w = image.shape[:2]
     window = (0, 0, h, w)
     scale = 1
+    image_dtype = image.dtype
+    image_max = np.max(image)
 
     # Scale?
     if min_dim:
@@ -415,8 +417,13 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
             scale = max_dim / image_max
     # Resize image and mask
     if scale != 1:
+        # NB: scipy.misc.imresize converts to uint8 0-255
         image = scipy.misc.imresize(
             image, (round(h * scale), round(w * scale)))
+        image = image.astype(image_dtype)
+        if image_max <= 1:
+            image = image / 255.
+
     # Need padding?
     if padding:
         # Get new height and width
@@ -452,6 +459,8 @@ def resize_image_scaled(image, scale, min_dim=None, max_dim=None):
     # Default window (y1, x1, y2, x2)
     h, w = image.shape[:2]
     window = (0, 0, h, w)
+    image_dtype = image.dtype
+    image_max = np.max(image)
     
     # Does it exceed max dim?
     if max_dim:
@@ -460,7 +469,11 @@ def resize_image_scaled(image, scale, min_dim=None, max_dim=None):
             scale = max_dim / image_max
     # Resize image and mask
     if scale != 1:
+        # NB: scipy.misc.imresize converts to uint8 0-255
         image = scipy.misc.imresize(image, (int(round(h * scale)), int(round(w * scale))))
+        image = image.astype(image_dtype)
+        if image_max <= 1:
+            image = image / 255.
 
     # Padding
     # Get new height and width

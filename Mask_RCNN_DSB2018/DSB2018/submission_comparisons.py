@@ -99,6 +99,45 @@ def mosaics_from_submissions(submission_dir):
                                  1, 3)
 
 
+def mosaics_from_test_mosaics(submission_dir):
+
+    labelfiles = np.array(os.listdir(submission_dir))
+    files = np.array([os.path.splitext(l)[0].split('_')[-2] for l in labelfiles])
+    mosaic_id = np.array([os.path.splitext(l)[0].split('_')[0] for l in labelfiles])
+    mosaic_position = np.array([os.path.splitext(l)[0].replace(f, '').replace(m + '_', '')[:-2] for l, f, m in zip(labelfiles, files, mosaic_id)])
+
+    for mosaic in np.unique(mosaic_id):
+
+        this_index = np.argwhere(mosaic_id == mosaic).reshape(-1, )
+
+        if len(this_index) > 1:
+
+            imgs = [load_img(os.path.join(test_dir, f, 'images', '.'.join((f, 'png')))) for f in files[this_index]]
+            labels = [np.load(os.path.join(submission_dir, f)) for f in labelfiles[this_index]]
+
+            shapes = [i.shape[:2] for i in imgs]
+            mosaic = np.zeros((shapes[0][0] + shapes[1][0], shapes[0][1] + shapes[1][1]))
+            mosaic_img = np.zeros((shapes[0][0] + shapes[1][0], shapes[0][1] + shapes[1][1], imgs[0].shape[-1]))
+
+            for i, idx in enumerate(this_index):
+                if mosaic_position[idx] == 'down_left':
+                    mosaic[shapes[0][0]:, :shapes[0][1]] = labels[i]
+                    mosaic_img[shapes[0][0]:, :shapes[0][1]] = imgs[i]
+                elif mosaic_position[idx] == 'down_right':
+                    mosaic[shapes[0][0]:, shapes[0][1]:] = labels[i]
+                    mosaic_img[shapes[0][0]:, shapes[0][1]:] = imgs[i]
+                elif mosaic_position[idx] == 'up_left':
+                    mosaic[:shapes[0][0], :shapes[0][1]] = labels[i]
+                    mosaic_img[:shapes[0][0], :shapes[0][1]] = imgs[i]
+                else:
+                    mosaic[:shapes[0][0], shapes[0][1]:] = labels[i]
+                    mosaic_img[:shapes[0][0], shapes[0][1]:] = imgs[i]
+
+            plot_multiple_images([mosaic_img, mosaic, image_with_labels(mosaic_img, mosaic)],
+                                 ['image', 'labels', 'img with labels'],
+                                 1, 3)
+
+
 
 def main():
     # Overwrite filenames with the submissions you wish to compare

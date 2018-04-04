@@ -33,27 +33,33 @@ def numpy2encoding_no_overlap(predicts, img_name):
 
 def numpy2encoding_no_overlap_threshold(predicts, img_name, scores, threshold = 30):
 
-    this_threshold = threshold + (threshold * (min(np.product(predicts.shape[:2]), (512 * 512)) - (256 * 256)) / (512 * 512))
-    valid = np.sum(predicts, axis = (0, 1)) >= this_threshold
-    predicts = predicts[:, :, valid]
-    scores = scores[valid]
+    if len(predicts) > 0:
 
-    sum_predicts = np.sum(predicts, axis=2)
-    rows, cols = np.where(sum_predicts>=2)
+        this_threshold = threshold + (threshold * (min(np.product(predicts.shape[:2]), (512 * 512)) - (256 * 256)) / (512 * 512))
+        valid = np.sum(predicts, axis = (0, 1)) >= this_threshold
+        predicts = predicts[:, :, valid]
+        scores = scores[valid]
+
+        sum_predicts = np.sum(predicts, axis=2)
+        rows, cols = np.where(sum_predicts>=2)
     
-    for i in zip(rows, cols):
-        instance_indicies = np.where(np.any(predicts[i[0],i[1],:]))[0]
-        highest = instance_indicies[0]
-        predicts[i[0],i[1],:] = predicts[i[0],i[1],:]*0
-        predicts[i[0],i[1],highest] = 1
+        for i in zip(rows, cols):
+            instance_indicies = np.where(np.any(predicts[i[0],i[1],:]))[0]
+            highest = instance_indicies[0]
+            predicts[i[0],i[1],:] = predicts[i[0],i[1],:]*0
+            predicts[i[0],i[1],highest] = 1
     
-    ImageId = []
-    EncodedPixels = []
-    for i in range(predicts.shape[2]): 
-        rle = run_length_encoding(predicts[:,:,i])
-        if len(rle)>0:
-            ImageId.append(img_name)
-            EncodedPixels.append(rle)    
+        ImageId = []
+        EncodedPixels = []
+        for i in range(predicts.shape[2]): 
+            rle = run_length_encoding(predicts[:,:,i])
+            if len(rle)>0:
+                ImageId.append(img_name)
+                EncodedPixels.append(rle)    
+    else:
+        ImageId = [img_name]
+        EncodedPixels = ['']
+
     return ImageId, EncodedPixels
 
 

@@ -271,7 +271,8 @@ def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True)
     else:
 
         dataset = DSB2018_Dataset(invert_type = 2)
-        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        #dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.add_nuclei(test_mosaics_dir, 'test', shuffle = False, use_mosaics = True)
         dataset.prepare()
         return _config, dataset
 

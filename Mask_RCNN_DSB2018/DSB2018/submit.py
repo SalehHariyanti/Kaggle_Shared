@@ -680,7 +680,10 @@ def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info
     """
     Saves labels from predictions
     """
-    labels, masks = du.labels_from_rles(EncodedPixels_batch, mask_shape)
+    if EncodedPixels_batch != ['']:
+        labels, masks = du.labels_from_rles(EncodedPixels_batch, mask_shape)
+    else:
+        labels = np.zeros(mask_shape)
                     
     mosaic_id = image_info['mosaic_id'] if 'mosaic_id' in image_info else 'None'
     mosaic_position = image_info['mosaic_position'] if 'mosaic_position' in image_info else 'None'
