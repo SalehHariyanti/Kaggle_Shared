@@ -180,14 +180,14 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
     
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=30,
+                    epochs=50,
                     layers='all')
 
     else:
 
-        dataset = DSB2018_Dataset(invert_type = 2)
-        dataset.add_nuclei(test_dir, 'test', shuffle = False)
-        dataset.prepare()
+        dataset_test = DSB2018_Dataset(invert_type = 2)
+        dataset_test.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset_test.prepare()
         return _config, dataset_test
 
 def main():

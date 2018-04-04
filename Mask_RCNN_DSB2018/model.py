@@ -1235,12 +1235,18 @@ def load_image_gt_augment(dataset, config, image_id, augment=False,
     if augment:
         # Random crop
         if np.random.random() < config.augmentation_crop:
-            if np.all(np.array(image.shape[:2]) > 256):
-                image, mask = random_crop(image, mask, 
-                                        (np.random.randint(256, min(512, image.shape[0])), np.random.randint(256, min(512, image.shape[1]))), 2)
+            min_axis_size = min(image.shape[:2])
+            if np.all(np.array(image.shape[:2]) > config.augmentation_crop_min_size):
+                target_crop_size = np.random.randint(
+                    config.augmentation_crop_min_size, 
+                    min(int(config.augmentation_crop_min_size * config.augmentation_crop_max_scale), min_axis_size))
             else:
-                image, mask = random_crop(image, mask, 
-                                        (np.random.randint(220, min(256, image.shape[0])), np.random.randint(220, min(256, image.shape[1]))), 2)
+                target_crop_size = np.random.randint(
+                    int(config.augmentation_crop_min_size * config.augmentation_crop_min_scale), 
+                    min(config.augmentation_crop_min_size, min_axis_size))
+
+            image, mask = random_crop(image, mask, (target_crop_size, target_crop_size), 2)
+
         # Random transform
         aug = XY_ImageDataGenerator(**config.augmentation_dict)
         image, mask = aug.random_transform(image, mask)

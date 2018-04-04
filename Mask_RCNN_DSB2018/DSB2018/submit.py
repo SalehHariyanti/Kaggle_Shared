@@ -624,7 +624,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model'):
 
 
 def main():
-    predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_masksizes, 'predict_scaled_model')
+    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model')
 
 
 if __name__ == '__main__':
