@@ -2045,6 +2045,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     """
     b = 0  # batch item index
     image_index = -1
+    item_index = -1
     image_ids = np.copy(dataset.image_ids)
     error_count = 0
 
@@ -2061,6 +2062,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
         try:
             # Increment index to pick next image. Shuffle if at the start of an epoch.
             image_index = (image_index + 1) % len(image_ids)
+            item_index += 1
             if shuffle and image_index == 0:
                 np.random.shuffle(image_ids)
 
@@ -2135,7 +2137,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
             batch_rpn_match[b] = rpn_match[:, np.newaxis]
             batch_rpn_bbox[b] = rpn_bbox
 
-            if (image_index % show_image_each == 0)and show_image is not None:
+            if (item_index % show_image_each == 0) and show_image is not None:
                 show_image(image, 0, 1.)
 
             batch_images[b] = mold_image(image.astype(np.float32), config)

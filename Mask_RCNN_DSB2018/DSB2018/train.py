@@ -8,7 +8,7 @@ from model import log
 import utils
 import random
 from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, base_dir
-
+import getpass
 
 def load_weights(model, _config, init_with_override = None):
 
@@ -177,11 +177,8 @@ def train_resnet101_flips_alldata_minimask12_double_invert_scaled(training = Tru
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=30,
-                    layers='all',
-                    show_image_each = 100)
-
+                    layers='all')
     else:
-
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
@@ -197,6 +194,7 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
                                mini_mask_shape = 12,
                                identifier = 'double_invert_mosaics',
                                augmentation_crop = 1.,
+                               fn_load = 'load_image_gt_augment',
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
                                                     'vertical_flip': True, 
@@ -220,8 +218,9 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
     
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=50,
-                    layers='all')
+                    epochs=20,
+                    layers='all',
+                    show_image_each = 100)
 
     else:
 
@@ -279,9 +278,11 @@ def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True)
 
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
-    #train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
-    #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
-    train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
+    if getpass.getuser() == 'antor':
+        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
+    else:
+        #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
+        train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
 
 if __name__ == '__main__':
     main()
