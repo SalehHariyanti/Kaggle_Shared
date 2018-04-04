@@ -7,7 +7,7 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, data_dir
+from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, base_dir
 
 
 def load_weights(model, _config, init_with_override = None):
@@ -230,12 +230,12 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         return _config, dataset_test
 
 
-def train_resnet101_flips_all_rots_data_minimask12_mosaics_ncbval(training=True):
+def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True):
 
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                train_data_root = train_mosaics_dir,
-                               val_data_root = os.path.join(data_dir, 'train_external', 'ncb'),
+                               val_data_root = os.path.join(base_dir, 'train_external', 'nsb'),
                                mini_mask_shape = 12,
                                identifier = '2inv_mos',
                                augmentation_crop = 1.,
@@ -278,7 +278,7 @@ def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     #train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
     #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
-    train_resnet101_flips_all_rots_data_minimask12_mosaics_ncbval()
+    train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
 
 if __name__ == '__main__':
     main()

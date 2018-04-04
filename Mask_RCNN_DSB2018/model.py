@@ -1096,7 +1096,7 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
                     smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
                     tf.constant(0.0))
     loss = K.mean(loss)
-    loss = K.reshape(loss, [1, 1])
+    #loss = K.reshape(loss, [1, 1]) # Removed because of bug with val_generator: https://github.com/matterport/Mask_RCNN/issues/89
     return loss
 
 

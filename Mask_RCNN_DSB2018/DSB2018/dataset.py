@@ -9,7 +9,7 @@ import imageio
 import skimage
 from scipy import ndimage
 import os
-from settings import train_dir, data_dir, train_group_id_file, test_group_id_file
+from settings import train_dir, data_dir, train_group_id_file, test_group_id_file, group_id_file
 import pandas as pd
 import dsb2018_utils as du
 import glob
@@ -239,13 +239,17 @@ def get_ids(file_id):
     Returns id based on mosaic membership
     (see clustering_functions.py)
     """
-    assert os.path.exists(train_group_id_file)
-    assert os.path.exists(test_group_id_file)
 
-    train_df = pd.read_csv(train_group_id_file)
-    test_df = pd.read_csv(test_group_id_file)
+    if os.path.exists(group_id_file):
+        mosaic_df = pd.read_csv(group_id_file)
+    else:
+        assert os.path.exists(train_group_id_file)
+        assert os.path.exists(test_group_id_file)
 
-    mosaic_df = pd.concat([train_df, test_df])
+        train_df = pd.read_csv(train_group_id_file)
+        test_df = pd.read_csv(test_group_id_file)
+
+        mosaic_df = pd.concat([train_df, test_df])
 
     mosaic_file_id = np.array(mosaic_df['img_id'])
     mosaic_id = np.array(mosaic_df['mosaic_idx'])
