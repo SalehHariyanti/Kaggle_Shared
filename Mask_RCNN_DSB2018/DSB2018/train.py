@@ -238,6 +238,7 @@ def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True)
                                val_data_root = [os.path.join(base_dir, 'train_external', 'nsb'), os.path.join(base_dir, 'train_external', 'ISBI')],
                                mini_mask_shape = 12,
                                identifier = '2inv_mos',
+                               val_steps = 45,
                                augmentation_crop = 1.,
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,

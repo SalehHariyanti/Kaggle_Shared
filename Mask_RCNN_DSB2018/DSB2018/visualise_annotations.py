@@ -50,8 +50,8 @@ def visualise_annotations(source_dirs, n = 2, target_colour = None):
 def visualise_mosaic_annotations(source_dirs, n = 2):
 
     # Extract filenames for images/masks
-    files = [os.path.join(dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] != '.npz']
-    masks = [os.path.join(dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] == '.npz']
+    files = [os.path.join(_dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] != '.npz']
+    masks = [os.path.join(_dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] == '.npz']
 
     img_list = []
     counter = 0
