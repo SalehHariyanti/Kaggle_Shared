@@ -16,7 +16,7 @@ def visualise_annotations(source_dirs, n = 2, target_colour = None):
     # Extract filenames for images/masks
     dirs = [os.path.join(dir, f) for dir in source_dirs for f in os.listdir(dir)]
     files = [os.path.join(f, 'images', ''.join((os.path.split(f)[-1], '.png'))) for f in dirs]
-    masks = [[os.path.join(f, 'masks', m) for m in os.listdir(os.path.join(f, 'masks'))] if os.path.exists(os.path.join(f, 'masks')) else None for f in dirs]
+    maskfiles = [[os.path.join(f, 'masks', m) for m in os.listdir(os.path.join(f, 'masks'))] if os.path.exists(os.path.join(f, 'masks')) else None for f in dirs]
 
     # Reduce to a target colour if requested
     if target_colour is not None:
@@ -24,11 +24,11 @@ def visualise_annotations(source_dirs, n = 2, target_colour = None):
         colour_id, _ = get_ids(files)
         valid_idx = np.argwhere(du.ismember(colour_id, np.array(target_colour))).reshape(-1,)
         files = [files[idx] for idx in valid_idx]
-        masks = [masks[idx] for idx in valid_idx]
+        maskfiles = [maskfiles[idx] for idx in valid_idx]
 
     img_list = []
     counter = 0
-    for f, m in zip(files, masks):
+    for f, m in zip(files, maskfiles):
 
         img = load_img(f)
         masks = np.stack([imageio.imread(path) for path in m], axis = -1)
@@ -51,15 +51,15 @@ def visualise_mosaic_annotations(source_dirs, n = 2):
 
     # Extract filenames for images/masks
     files = [os.path.join(_dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] != '.npz']
-    masks = [os.path.join(_dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] == '.npz']
+    maskfiles = [os.path.join(_dir, f) for _dir in source_dirs for f in os.listdir(_dir) if os.path.splitext(f)[-1] == '.npz']
 
     img_list = []
     counter = 0
-    for f, m in zip(files, masks):
+    for f, m in zip(files, maskfiles):
 
         img = load_img(f)
         masks = np.load(m)
-        labels = du.maskrcnn_mask_to_labels(masks)
+        labels = du.maskrcnn_mask_to_labels(masks['mask_mosaic'])
         counter += 1
 
         if counter > n:
