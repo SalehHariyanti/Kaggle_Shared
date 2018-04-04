@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import cv2
 import csv
 from visualize import *
+from dsb2018_utils import * 
 
 base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
@@ -15,28 +16,6 @@ submissions_dir = os.path.join(base_dir, 'submissions')
 #############
 # Comparing submission outputs
 
-
-def run_length_decode(rel, H, W, fill_value = 255, index_offset = 0):
-    mask = np.zeros((H * W), np.uint8)
-    if rel != '':
-        rel  = np.array([int(s) for s in rel.split(' ')]).reshape(-1, 2)
-        for r in rel:
-            start = r[0] - index_offset
-            end   = start + r[1]
-            mask[start : end] = fill_value
-    mask = mask.reshape(H, W)
-    return mask
-
-
-def labels_from_rles(mask_rles, mask_shape):
-
-    masks = [run_length_decode(rle, mask_shape[1], mask_shape[0], 1, index_offset = 1).T for rle in mask_rles]
-    labels = np.zeros(mask_shape, dtype = np.int)
-
-    for i, mask in enumerate(masks):
-        labels += (mask * (i + 1))
-
-    return labels, masks
 
 
 def extract_data(file):
