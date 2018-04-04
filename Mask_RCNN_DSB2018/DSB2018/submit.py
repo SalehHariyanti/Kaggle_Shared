@@ -15,7 +15,7 @@ import visualize
 import matplotlib.pyplot as plt
 
 import train
-
+import getpass
                     
 def base_test_dataset():
     dataset = DSB2018_Dataset()
@@ -376,7 +376,9 @@ def predict_model(_config, dataset, epoch = None, augment_flips = False, augment
 
 
     if create_submission:
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+        submission_filename = os.path.join(submissions_dir, '_'.join(('submission', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv')))
+        f.write2csv(submission_filename, ImageId, EncodedPixels)
+        return submission_filename
 
 
 def predict_multiple(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, save_predictions = False, create_submission = True):
@@ -688,17 +690,28 @@ def save_model_predictions(EncodedPixels_batch, mask_shape, image_info):
 
     np.save(save_filename, labels)
 
-    return
+    return 
 
 
 def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
     _config, dataset = fn_experiment(training=False)
-    globals()[fn_predict](_config, dataset, **kwargs)
+    submission_filename = globals()[fn_predict](_config, dataset, **kwargs)
+
+    if submission_filename is not None:
+        epoch = 'last' if 'epoch' not in kwargs else kwargs['epoch']
+        print("\nkaggle competition submit -f {} -m 'experiment {} @ epoch {}'".format(
+            submission_filename,
+            fn_predict.__name__,
+            epoch
+            )
 
 
 def main():
-    predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=25)
-
+    if getpass.getuser() == 'antor':
+        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
+    else:
+        # your expderiment here
+        pass
 
 if __name__ == '__main__':
     main()
