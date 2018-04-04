@@ -1348,7 +1348,8 @@ def load_image_gt_augment_scaled(dataset, config, image_id, augment=False,
         padding=config.IMAGE_PADDING)
     _mask = utils.resize_mask(mask.copy(), scale, padding)
     # Rescale
-    rescale = np.sqrt(1300 / np.mean(np.sum(_mask, axis = (0, 1))))
+    avg_mask_size = np.mean(np.sum(_mask, axis = (0, 1)))
+    rescale = np.sqrt(1300 / avg_mask_size) if avg_mask_size > 0 else 1
     image, window, scale, padding = utils.resize_image_scaled(image, rescale, min_dim=config.IMAGE_MIN_DIM,max_dim=config.IMAGE_MAX_DIM)
     mask = utils.resize_mask(mask, scale, padding)
 
@@ -2528,7 +2529,8 @@ class MaskRCNN():
         # Data generators
         train_generator = data_generator(train_dataset, self.config, shuffle=True,
                                          batch_size=self.config.BATCH_SIZE, augment = True)
-        val_generator = data_generator(val_dataset, self.config, shuffle=True,
+        if val_dataset is not None:
+            val_generator = data_generator(val_dataset, self.config, shuffle=True,
                                        batch_size=self.config.BATCH_SIZE,
                                        augment=False)
 
@@ -2565,8 +2567,8 @@ class MaskRCNN():
             epochs=epochs,
             steps_per_epoch=self.config.STEPS_PER_EPOCH,
             callbacks=callbacks,
-            validation_data=next(val_generator),
-            validation_steps=self.config.VALIDATION_STEPS,
+            validation_data=val_generator if val_dataset is not None else None,
+            validation_steps=self.config.VALIDATION_STEPS if val_dataset is not None else 0,
             max_queue_size=32,
             workers=workers,
             use_multiprocessing=use_multiprocessing,
