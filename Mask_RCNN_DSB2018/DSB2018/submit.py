@@ -372,7 +372,7 @@ def predict_model(_config, dataset, epoch = None, augment_flips = False, augment
                 if save_predictions:
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+                    save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
 
     if create_submission:
@@ -456,7 +456,7 @@ def predict_multiple(configs, datasets, epoch = None, augment_flips = False, aug
                     if save_predictions:
                         # Extract final masks from EncodedPixels_batch here and save
                         # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                        save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+                        save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
 
     if create_submission:                   
@@ -524,7 +524,7 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
                 if save_predictions:
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+                    save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
 
     if create_submission:
@@ -594,7 +594,7 @@ def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid
                 if save_predictions:
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+                    save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
 
     if create_submission:
@@ -671,18 +671,18 @@ def predict_scaled_model(_config, dataset, epoch = None, nms_threshold = 0.3, sa
                 if save_predictions:
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+                    save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
 
 
     if create_submission:
         f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_scaled', _config.NAME, str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def save_model_predictions(EncodedPixels_batch, mask_shape, image_info):
+def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info):
     """
     Saves labels from predictions
     """
-    labels = du.labels_from_rles(EncodedPixels_batch, mask_shape)
+    labels, masks = du.labels_from_rles(EncodedPixels_batch, mask_shape)
                     
     mosaic_id = image_info['mosaic_id'] if 'mosaic_id' in image_info else 'None'
     mosaic_position = image_info['mosaic_position'] if 'mosaic_position' in image_info else 'None'
@@ -706,13 +706,11 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
             )
         )
 
-
 def main():
     if getpass.getuser() == 'antor':
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
     else:
-        # your expderiment here
-        pass
+        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
 
 if __name__ == '__main__':
     main()
