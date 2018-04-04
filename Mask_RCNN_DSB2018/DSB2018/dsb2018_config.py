@@ -48,6 +48,9 @@ class mask_rcnn_config(config.Config):
                  model_dir = data_dir,
                  identifier = '',
                  augmentation_crop = 0.5,
+                 augmentation_crop_min_size  = 256,
+                 augmentation_crop_max_scale =   2,
+                 augmentation_crop_min_scale = 0.8,
                  augmentation_dict = {'dim_ordering': 'tf', 'horizontal_flip': True, 'vertical_flip': True},
                  fn_load = 'load_image_gt_augment',
                  mask_size_dir = None):
@@ -175,6 +178,9 @@ class mask_rcnn_config(config.Config):
 
         self.augmentation_dict = augmentation_dict
         self.augmentation_crop = augmentation_crop
+        self.augmentation_crop_min_size = augmentation_crop_min_size
+        self.augmentation_crop_max_scale = augmentation_crop_max_scale
+        self.augmentation_crop_min_scale = augmentation_crop_min_scale
         self.fn_load = fn_load
 
         self.NAME = self.get_name()

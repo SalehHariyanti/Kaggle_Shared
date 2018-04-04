@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt    # Python 2D plotting library
 import matplotlib.cm as cm         # Color map
 from sklearn.neighbors import NearestNeighbors
 
-base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 data_dir = os.path.join(base_dir, 'data')
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test') 
@@ -312,9 +312,12 @@ def make_mosaic(data,return_connectivity = False, plot_images = False,external_d
         ## print(len(temp.mosaic_idx[temp.mosaic_idx.isnull()] ))
         ## print(len(list(range(temp.mosaic_idx.shape[0]-len(temp.mosaic_idx[temp.mosaic_idx.isnull()]),
         ##                     temp.mosaic_idx.shape[0]))))
-        external_df.loc[external_df['mosaic_idx'].isnull(),'mosaic_idx'] = range(
-            int(np.nanmax(external_df.mosaic_idx.unique())) + 1,
-            int(np.nanmax(external_df.mosaic_idx.unique())) + 1 + len(external_df.mosaic_idx[external_df.mosaic_idx.isnull()]))
+        if np.all(external_df['mosaic_idx'].isnull()):
+            external_df['mosaic_idx'] = range(1, 1 + len(external_df['mosaic_idx']))
+        else:
+            external_df.loc[external_df['mosaic_idx'].isnull(),'mosaic_idx'] = range(
+                int(np.nanmax(external_df.mosaic_idx.unique())) + 1,
+                int(np.nanmax(external_df.mosaic_idx.unique())) + 1 + len(external_df.mosaic_idx[external_df.mosaic_idx.isnull()]))
         external_df['mosaic_idx'] = external_df['mosaic_idx'].astype(np.int32)
         if return_connectivity:
             return filtered_imgs, external_df, good_img_connectivity
