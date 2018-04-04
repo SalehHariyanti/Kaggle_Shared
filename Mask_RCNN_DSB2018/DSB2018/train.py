@@ -163,13 +163,11 @@ def train_resnet101_flips_alldata_minimask12_double_invert_scaled(training = Tru
     if training:
         # Training dataset
         dataset_train = DSB2018_Dataset(invert_type = 2)
-        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1.0)
         dataset_train.prepare()
 
         # Validation dataset
-        dataset_val = DSB2018_Dataset(invert_type = 2)
-        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
-        dataset_val.prepare()
+        dataset_val = None
 
         # Create model in training mode
         model = modellib.MaskRCNN(mode="training", config=_config,
