@@ -7,7 +7,7 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir
+from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, data_dir
 
 
 def load_weights(model, _config, init_with_override = None):
@@ -229,10 +229,56 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         dataset.prepare()
         return _config, dataset_test
 
+
+def train_resnet101_flips_all_rots_data_minimask12_mosaics_ncbval(training=True):
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               train_data_root = train_mosaics_dir,
+                               val_data_root = os.path.join(data_dir, 'train_external', 'ncb'),
+                               mini_mask_shape = 12,
+                               identifier = '2inv_mos',
+                               augmentation_crop = 1.,
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True, 
+                                                    'rots':True})
+
+    if training:
+        # Training dataset
+        dataset_train = DSB2018_Dataset(invert_type = 2)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1.0, use_mosaics=True)
+        dataset_train.prepare()
+
+        # Validation dataset
+        dataset_val = DSB2018_Dataset(invert_type = 2)
+        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.0, use_mosaics=False)
+        dataset_val.prepare()
+
+        # Create model in training mode
+        model = modellib.MaskRCNN(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=30,
+                    layers='all',
+                    augment_val = True)
+
+    else:
+
+        dataset = DSB2018_Dataset(invert_type = 2)
+        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.prepare()
+        return _config, dataset_test
+
+
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     #train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
-    train_resnet101_flips_alldata_minimask12_double_invert_scaled()
+    #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
+    train_resnet101_flips_all_rots_data_minimask12_mosaics_ncbval()
 
 if __name__ == '__main__':
     main()
