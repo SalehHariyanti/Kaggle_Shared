@@ -699,11 +699,12 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
     if submission_filename is not None:
         epoch = 'last' if 'epoch' not in kwargs else kwargs['epoch']
-        print("\nkaggle competition submit -f {} -m 'experiment {} @ epoch {}'".format(
+        print("\nkaggle competitions submit -f {} -m 'experiment {} @ epoch {}'".format(
             submission_filename,
-            fn_predict.__name__,
+            fn_experiment.__name__,
             epoch
             )
+        )
 
 
 def main():
