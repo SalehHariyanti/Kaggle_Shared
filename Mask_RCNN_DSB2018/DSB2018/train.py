@@ -177,7 +177,8 @@ def train_resnet101_flips_alldata_minimask12_double_invert_scaled(training = Tru
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=30,
-                    layers='all')
+                    layers='all',
+                    show_image_each = 100)
 
     else:
 
