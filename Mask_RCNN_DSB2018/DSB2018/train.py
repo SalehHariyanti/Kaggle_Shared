@@ -235,7 +235,7 @@ def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True)
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                train_data_root = train_mosaics_dir,
-                               val_data_root = os.path.join(base_dir, 'train_external', 'nsb'),
+                               val_data_root = [os.path.join(base_dir, 'train_external', 'nsb'), os.path.join(base_dir, 'train_external', 'ISBI')],
                                mini_mask_shape = 12,
                                identifier = '2inv_mos',
                                augmentation_crop = 1.,
