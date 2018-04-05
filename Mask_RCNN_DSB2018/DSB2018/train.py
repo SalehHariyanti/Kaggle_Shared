@@ -352,13 +352,12 @@ def train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig(tra
 
         return configs, dataset
 
-def train_resnet101_flips_256_minimask12_double_invert(training = True):
+
+def train_resnet101_flips_alldata_minimask12_double_invert_semantic(training = True):
 
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                mini_mask_shape = 12,
-                               image_max_dim = 256,
-                               image_min_dim = 256,
                                identifier = 'double_invert',
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
@@ -376,13 +375,13 @@ def train_resnet101_flips_256_minimask12_double_invert(training = True):
         dataset_val.prepare()
 
         # Create model in training mode
-        model = modellib.MaskRCNN(mode="training", config=_config,
+        model = modellib.BespokeMaskRCNN(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=20,
+                    epochs=30,
                     layers='all')
     else:
         dataset = DSB2018_Dataset(invert_type = 2)
@@ -390,15 +389,12 @@ def train_resnet101_flips_256_minimask12_double_invert(training = True):
         dataset.prepare()
         return _config, dataset
 
-
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if getpass.getuser() == 'antor':
         train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color()
     else:
-        #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
-        #train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
-        train_resnet101_flips_256_minimask12_double_invert()
+        train_resnet101_flips_alldata_minimask12_double_invert_semantic()
 
 if __name__ == '__main__':
     main()

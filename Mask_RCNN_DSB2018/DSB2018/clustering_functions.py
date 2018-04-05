@@ -62,6 +62,7 @@ def read_data_properties(source_dirs, img_dir_name):
 
     data_df = pd.DataFrame(tmp, columns = ['img_id', 'img_height', 'img_width',
                                            'img_ratio', 'num_channels', 'image_path'])
+
     return data_df
 
 def load_raw_data(img_paths, image_size=(256, 256), space = 'bgr'):
@@ -71,13 +72,13 @@ def load_raw_data(img_paths, image_size=(256, 256), space = 'bgr'):
     data = []
     sys.stdout.flush()
     for i, filename in tqdm.tqdm(enumerate(img_paths), total=len(img_paths)):
-        img = read_image(filename, target_size=image_size,space=space)
+        img = read_image(filename, target_size=image_size, space=space)
         data.append(img)
     data = np.array(data)
     print('Data loaded')
     return data
 
-def get_domimant_colors(img, top_colors=1):
+def get_domimant_colors(img, top_colors=2):
     """Return dominant image color"""
     img_l = img.reshape((img.shape[0] * img.shape[1], img.shape[2]))
     clt = KMeans(n_clusters = top_colors)
@@ -91,22 +92,21 @@ def get_domimant_colors(img, top_colors=1):
     hist /= hist.sum()
     return clt.cluster_centers_, hist
 
-def cluster_images_by_hsv():
+def cluster_images_by_hsv(img_paths, n_clusters=5, top_colors=2):
     """Clusterization based on hsv colors. Adds 'hsv_cluster' column to tables"""
     print('Loading data')
-    x_train_hsv,x_test_hsv = load_raw_data(image_size=None,space='hsv',load_mask=False)
-    x_hsv = np.concatenate([x_train_hsv,x_test_hsv])
+    x_hsv = load_raw_data(img_paths, image_size=(256,256), space='hsv')
     print('Calculating dominant hsv for each image')
     dominant_hsv = []
     for img in tqdm.tqdm(x_hsv):
-        res1, res2 = get_domimant_colors(img,top_colors=1)
-        dominant_hsv.append(res1.squeeze())
+        res1, res2 = get_domimant_colors(img,top_colors=top_colors)
+        dominant_hsv.append(res1)
+    dominant_hsv = np.array(dominant_hsv)
+    dominant_hsv = dominant_hsv.reshape(dominant_hsv.shape[0], -1)
     print('Calculating clusters')
-    kmeans = KMeans(n_clusters=3).fit(dominant_hsv)
-    train_df['HSV_CLUSTER'] = kmeans.predict(dominant_hsv[:len(x_train_hsv)])
-    test_df['HSV_CLUSTER'] = kmeans.predict(dominant_hsv[len(x_train_hsv):])
+    kmeans = KMeans(n_clusters=n_clusters).fit(dominant_hsv)
     print('Images clustered')
-    return None
+    return kmeans.predict(dominant_hsv)
 
 def plot_images(selected_images_df,images_rows=4,images_cols=8,plot_figsize=4):
     """Plot image_rows*image_cols of selected images. Used to visualy check clusterization"""
@@ -303,7 +303,7 @@ def make_mosaic(data,return_connectivity = False, plot_images = False,external_d
             
     # list of not combined images. return if you need
     not_combined = list(set(range(len(data))) - indexes)
-    
+
     if external_df is not None:
         #un_mos_id = external_df[external_df.mosaic_idx.notnull()].mosaic_idx.unique()
         #mos_dict = {k:v for k,v in zip(un_mos_id,range(len(un_mos_id)))}
@@ -359,7 +359,7 @@ def infer_target_id(imgs):
 
     return colour_id
 
-def run(save_filename, source_dirs=None):
+def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
 
     if source_dirs is None:
         source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
@@ -373,7 +373,13 @@ def run(save_filename, source_dirs=None):
     # code which makes csv with clusters and mosaic ids for test data
     imgs, data_frame = make_mosaic(x_all, return_connectivity = False, plot_images = False, external_df = all_df)
 
-    all_df['target_id'] = infer_target_id(np.array([resize_img(x, 256, 256) for x in x_all]))
+    if extra_dirs_for_clustering is not None:
+        extra_df = read_data_properties(extra_dirs_for_clustering, IMG_DIR_NAME)
+        all_df_with_extra = pd.concat([all_df, extra_df])
+    else:
+        all_df_with_extra = all_df 
+    
+    all_df['cluster_id'] = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)[:len(all_df)]
 
     all_df.to_csv(save_filename, index = False)
 
