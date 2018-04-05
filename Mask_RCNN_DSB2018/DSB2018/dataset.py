@@ -14,6 +14,7 @@ import pandas as pd
 import dsb2018_utils as du
 import glob
 import math
+from enum import Enum
 
 class DSB2018_Dataset(utils.Dataset):
     """Override:
@@ -22,14 +23,18 @@ class DSB2018_Dataset(utils.Dataset):
             image_reference()
     """
 
-    def __init__(self, class_map=None, invert_type = 1):
+    Cache = Enum("Cache",'NONE DISK DISK_MASKS')
+
+    def __init__(self, class_map=None, invert_type = 1, to_grayscale=True, cache=Cache.DISK):
         self._image_ids = []
         self.image_info = []
         # Background is always the first class
         self.class_info = [{"source": "", "id": 0, "name": "BG"}]
         self.source_class_ids = {}
         self.invert_type = invert_type
-        
+        self.to_grayscale = to_grayscale
+        self.cache = cache
+
     def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_colour_id = None, use_mosaics=False):
         # Add classes
         self.add_class("nuclei", 1, "nuclei") # source, id, name. id = 0s is BG
@@ -100,7 +105,7 @@ class DSB2018_Dataset(utils.Dataset):
                     )
       
     def get_cache_dir(self, is_mask):
-        return os.path.join(data_dir, '_'.join(('maskrcnn_mask_cache' if is_mask else 'maskrcnn_image_cache', str(self.invert_type))))
+        return os.path.join(data_dir, '_'.join(('maskrcnn_mask_cache' if is_mask else 'maskrcnn_image_cache', str(self.invert_type), str(self.to_grayscale))))
 
     def load_image(self, image_id):
         """Load the specified image and return a [H,W,3] Numpy array.
@@ -112,34 +117,40 @@ class DSB2018_Dataset(utils.Dataset):
 
         if self.image_info[image_id]['is_mosaic'] is False:
 
-            image_file = os.path.join(self.get_cache_dir(False), ''.join((self.image_info[image_id]['name'], '.npy')))
+            image = None
 
-            if not os.path.exists(self.get_cache_dir(False)):
-                os.makedirs(self.get_cache_dir(False))
+            if self.cache == DSB2018_Dataset.Cache.DISK:
 
-            if os.path.exists(image_file):
+                image_file = os.path.join(self.get_cache_dir(False), ''.join((self.image_info[image_id]['name'], '.npy')))
 
-                image = np.load(image_file)
+                if not os.path.exists(self.get_cache_dir(False)):
+                    os.makedirs(self.get_cache_dir(False))
 
-            else:
-                
+                if os.path.exists(image_file):
+                    image = np.load(image_file)
+
+            if image is None:
+
                 image = imageio.imread(self.image_info[image_id]['path'])
                 # RGBA to RGB
                 if image.ndim == 2:
                     image = np.stack([image] * 3, axis = -1)
                 elif image.shape[2] != 3:
                     image = image[:,:,:3]
+                
                 # Grey and invert
-                image = skimage.color.rgb2gray(image.astype('uint8'))
-                # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
-                image = (image * 255).astype(np.uint8)
-                if self.invert_type == 1:
-                    image = self.invert_img(image)
-                elif self.invert_type == 2:
-                    image = self.invert_img(self.invert_img(image), cutoff = -1)
-                image = np.stack([image] * 3, axis = -1)
+                if self.to_grayscale:
+                    image = skimage.color.rgb2gray(image.astype('uint8'))
+                    # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+                    image = (image * 255).astype(np.uint8)
+                    if self.invert_type == 1:
+                        image = self.invert_img(image)
+                    elif self.invert_type == 2:
+                        image = self.invert_img(self.invert_img(image), cutoff = -1)
+                    image = np.stack([image] * 3, axis = -1)
 
-                np.save(image_file, image)
+                if self.cache == DSB2018_Dataset.Cache.DISK:
+                    np.save(image_file, image)
 
         else:
 
@@ -149,15 +160,17 @@ class DSB2018_Dataset(utils.Dataset):
                 image = np.stack([image] * 3, axis = -1)
             elif image.shape[2] != 3:
                 image = image[:,:,:3]
+
             # Grey and invert
-            image = skimage.color.rgb2gray(image.astype('uint8'))
-            # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
-            image = (image * 255).astype(np.uint8)
-            if self.invert_type == 1:
-                image = self.invert_img(image)
-            elif self.invert_type == 2:
-                image = self.invert_img(self.invert_img(image), cutoff = -1)
-            image = np.stack([image] * 3, axis = -1)
+            if self.to_grayscale:
+                image = skimage.color.rgb2gray(image.astype('uint8'))
+                # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+                image = (image * 255).astype(np.uint8)
+                if self.invert_type == 1:
+                    image = self.invert_img(image)
+                elif self.invert_type == 2:
+                    image = self.invert_img(self.invert_img(image), cutoff = -1)
+                image = np.stack([image] * 3, axis = -1)
 
         return image
     
@@ -186,17 +199,20 @@ class DSB2018_Dataset(utils.Dataset):
 
         if self.image_info[image_id]['is_mosaic'] is False:
 
-            mask_file = os.path.join(self.get_cache_dir(True), ''.join((self.image_info[image_id]['name'], '.npy')))
+            mask = None
 
-            if not os.path.exists(self.get_cache_dir(True)):
-                os.makedirs(self.get_cache_dir(True))
+            if (self.cache == DSB2018_Dataset.Cache.DISK) or (self.cache == DSB2018_Dataset.Cache.DISK_MASKS):
 
-            if os.path.exists(mask_file):
+                mask_file = os.path.join(self.get_cache_dir(True), ''.join((self.image_info[image_id]['name'], '.npy')))
 
-                mask = np.load(mask_file)
+                if not os.path.exists(self.get_cache_dir(True)):
+                    os.makedirs(self.get_cache_dir(True))
 
-            else:
-      
+                if os.path.exists(mask_file):
+                    mask = np.load(mask_file)
+
+            if mask is None:
+
                 info = self.image_info[image_id]
                 mask_dir = info['mask_dir'] 
                 mask_names = os.listdir(mask_dir)
@@ -207,7 +223,8 @@ class DSB2018_Dataset(utils.Dataset):
                 masks = [self.fill_img(imageio.imread(path)) for path in mask_paths]
                 mask = np.stack(masks, axis=-1)
 
-                np.save(mask_file, mask)
+                if (self.cache == DSB2018_Dataset.Cache.DISK) or (self.cache == DSB2018_Dataset.Cache.DISK_MASKS):
+                    np.save(mask_file, mask)
 
         else:
 

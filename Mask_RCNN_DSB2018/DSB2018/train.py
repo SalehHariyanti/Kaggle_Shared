@@ -203,20 +203,15 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
     if training:
         # Training dataset
         dataset_train = DSB2018_Dataset(invert_type = 2)
-        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995, use_mosaics=True)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1, use_mosaics=True)
         dataset_train.prepare()
-
-        # Validation dataset
-        dataset_val = DSB2018_Dataset(invert_type = 2)
-        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995, use_mosaics=True)
-        dataset_val.prepare()
 
         # Create model in training mode
         model = modellib.MaskRCNN(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
-        model.train(dataset_train, dataset_val,
+        model.train(dataset_train, None,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=20,
                     layers='all',
@@ -229,6 +224,41 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         dataset_test.prepare()
         return _config, dataset_test
 
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color(training=True):
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               identifier = 'double_invert_mosaics',
+                               augmentation_crop = 1.,
+                               fn_load = 'load_image_gt_augment',
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True, 
+                                                    'rots':True})
+
+    if training:
+        # Training dataset
+        dataset_train = DSB2018_Dataset(to_grayscale = False, cache = DSB2018_Dataset.Cache.NONE)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1)
+        dataset_train.prepare()
+
+        # Create model in training mode
+        model = modellib.MaskRCNN(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, None,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=20,
+                    layers='all',
+                    show_image_each = 100)
+
+    else:
+
+        dataset_test = DSB2018_Dataset(invert_type = 2)
+        dataset_test.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset_test.prepare()
+        return _config, dataset_test
 
 def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True):
 
@@ -326,7 +356,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig(tra
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if getpass.getuser() == 'antor':
-        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics()
+        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color()
     else:
         #train_resnet101_flips_alldata_minimask12_double_invert_scaled()
         #train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval()
