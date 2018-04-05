@@ -101,6 +101,7 @@ class DSB2018_Dataset(utils.Dataset):
                     image_id = i,
                     path = image_name,    
                     name = os.path.split(image_name)[-1],
+                    mosaic_id = os.path.split(image_name)[-1].split('.')[0],
                     is_mosaic = True
                     )
       
