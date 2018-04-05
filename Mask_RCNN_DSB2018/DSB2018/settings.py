@@ -8,7 +8,11 @@ import keras.backend as K
 from keras.backend.tensorflow_backend import set_session
 import tensorflow
 
-if os.name == 'nt' and False:
+from tensorflow.python.client import device_lib
+
+local_device_protos = device_lib.list_local_devices()
+
+if os.name == 'nt' and len(local_device_protos) > 2:
     config = tensorflow.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     config.gpu_options.allow_growth = True
     config.gpu_options.per_process_gpu_memory_fraction = 0.7

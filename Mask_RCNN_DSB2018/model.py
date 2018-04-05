@@ -969,14 +969,23 @@ def build_fpn_mask_graph(rois, feature_maps,
     return x
 
 
-def build_semantic_mask_graph(C2, C3, C4, C5, base_num_convolutions = 64):
+def build_semantic_mask_graph(C2, C3, C4, C5, base_num_convolutions = 64, init_method = 'glorot_uniform'):
+    """
+    Take Resnet outputs and upsample to semantic mask
+    """
+    # C3 + base_num_convolutions = 64
+    # C5 + base_num_convolutions = 256... way too deep!!
 
-    up_layers = C5
-    for i in range(3, 0, -1):
-        up_layers = up_layer(np.int((2 ** i) * base_num_convolutions / 2), up_layers)
+    up_layers = C3
+   
+    for i, opposite_layer in zip(np.arange(3, 0, -1), [C2, None, None]):
+        if opposite_layer is not None:
+            up_layers = up_merge_layer(np.int((2 ** i) * base_num_convolutions / 2), up_layers, opposite_layer)
+        else:
+            up_layers = up_layer(np.int((2 ** i) * base_num_convolutions / 2), up_layers)
 
     # Prediction layer
-    semantic_output = KL.Conv2D(1, 1, 1, activation='sigmoid', kernel_initializer = init_method, name = 'semantic_output')(up_layers)
+    semantic_output = KL.Conv2D(1, (1, 1), activation='sigmoid', kernel_initializer = init_method, name = 'semantic_output')(up_layers)
                 
     return semantic_output
 
@@ -984,21 +993,24 @@ def build_semantic_mask_graph(C2, C3, C4, C5, base_num_convolutions = 64):
 def up_layer(num_convolutions, preceeding_layer, dropout_rate = 0.0, use_spatial_dropout = True, filter_size = 3, padding = 'same', init_method = 'glorot_uniform', apply_batchnorm = True):
 
     # Up_layer consists of upsampling + conv + elu + conv + elu
+    # NB: better keep the layer names unique so that we don't overlap with previous saved weights
 
     fn_relu = KL.advanced_activations.ELU 
 
     up_layers = preceeding_layer
 
-    up_layers = KL.UpSampling2D(size = (2, 2))(up_layers)
-    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method)(up_layers)
+    up_layers = KL.UpSampling2D(size = (2, 2), name = '_'.join(('USamp1', str(num_convolutions))))(up_layers)
+    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method, 
+                          name = '_'.join(('UConv1', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization()(up_layers) 
-    up_layers = KL.SpatialDropout2D(dropout_rate)(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate)(up_layers)
-    up_layers = fn_relu()(up_layers)
-    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method)(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN1', str(num_convolutions))))(up_layers) 
+    up_layers = KL.SpatialDropout2D(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers)
+    up_layers = fn_relu(name = '_'.join(('UElu1', str(num_convolutions))))(up_layers)
+    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method,
+                          name = '_'.join(('UConv2', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization()(up_layers) 
-    up_layers = fn_relu()(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN2', str(num_convolutions))))(up_layers) 
+    up_layers = fn_relu(name = '_'.join(('UElu2', str(num_convolutions))))(up_layers)
        
     return up_layers
 
@@ -1011,19 +1023,22 @@ def up_merge_layer(num_convolutions, preceeding_layer, opposite_layer, dropout_r
 
     up_layers = preceeding_layer
 
-    up_layers = KL.UpSampling2D(size = (2, 2))(up_layers)
+    up_layers = KL.UpSampling2D(size = (2, 2), name = '_'.join(('USamp1', str(num_convolutions))))(up_layers)
 
-    up_layers = KL.merge([up_layers, opposite_layer], mode='concat', concat_axis = -1)
+    up_layers = KL.merge([up_layers, opposite_layer], mode='concat', concat_axis = -1, name = '_'.join(('UMerge1', str(num_convolutions))))
 
-    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method)(up_layers)
+    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method, 
+                          name = '_'.join(('UConv1', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization()(up_layers) 
-    up_layers = fn_relu()(up_layers)
-    up_layers = KL.SpatialDropout2D(dropout_rate)(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate)(up_layers)
-    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method)(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN1', str(num_convolutions))))(up_layers) 
+    up_layers = KL.SpatialDropout2D(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers)
+    up_layers = fn_relu(name = '_'.join(('UElu1', str(num_convolutions))))(up_layers)
+    up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method,
+                          name = '_'.join(('UConv2', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization()(up_layers) 
-    up_layers = fn_relu()(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN2', str(num_convolutions))))(up_layers) 
+    up_layers = fn_relu(name = '_'.join(('UElu2', str(num_convolutions))))(up_layers)
+
                
     return up_layers
 
@@ -1374,7 +1389,7 @@ def load_image_gt_augment(dataset, config, image_id, augment=False,
     active_class_ids[source_class_ids] = 1
 
     if include_semantic:
-        semantic_mask = np.sum(mask, axis = (0, 1)).astype(np.int)
+        semantic_mask = np.expand_dims((np.sum(mask, axis = -1) > 0).astype(np.int), -1)
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
@@ -1476,7 +1491,7 @@ def load_image_gt_augment_cropsq(dataset, config, image_id, augment=False,
     active_class_ids[source_class_ids] = 1
 
     if include_semantic:
-        semantic_mask = np.sum(mask, axis = (0, 1)).astype(np.int)
+        semantic_mask = np.expand_dims((np.sum(mask, axis = -1) > 0).astype(np.int), -1)
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
@@ -1580,7 +1595,7 @@ def load_image_gt_augment_scaled(dataset, config, image_id, augment=False,
     active_class_ids[source_class_ids] = 1
 
     if include_semantic:
-        semantic_mask = np.sum(mask, axis = (0, 1)).astype(np.int)
+        semantic_mask = np.expand_dims((np.sum(mask, axis = -1) > 0).astype(np.int), -1)
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
@@ -1680,7 +1695,7 @@ def load_image_gt_augment_fixedaspect(dataset, config, image_id, augment=False,
     active_class_ids[source_class_ids] = 1
 
     if include_semantic:
-        semantic_mask = np.sum(mask, axis = (0, 1)).astype(np.int)
+        semantic_mask = np.expand_dims((np.sum(mask, axis = -1) > 0).astype(np.int), -1)
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
@@ -1760,6 +1775,9 @@ def load_image_gt_augment_2(dataset, config, image_id, augment=False,
     active_class_ids = np.zeros([dataset.num_classes], dtype=np.int32)
     source_class_ids = dataset.source_class_ids[dataset.image_info[image_id]["source"]]
     active_class_ids[source_class_ids] = 1
+
+    if include_semantic:
+        semantic_mask = np.expand_dims((np.sum(mask, axis = -1) > 0).astype(np.int), -1)
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
@@ -2190,7 +2208,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
             if include_semantic:
                 image, image_meta, gt_class_ids, gt_boxes, gt_masks, gt_semantic = \
                     globals()[config.fn_load](dataset, config, image_id, augment=augment,
-                                  use_mini_mask=config.USE_MINI_MASK)
+                                  use_mini_mask=config.USE_MINI_MASK, include_semantic = include_semantic)
             else:
                 image, image_meta, gt_class_ids, gt_boxes, gt_masks = \
                     globals()[config.fn_load](dataset, config, image_id, augment=augment,
@@ -2238,7 +2256,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
 
                 if include_semantic:
                     batch_gt_semantic = np.zeros(
-                        (batch_size, image.shape[0], image.shape[1]))
+                        (batch_size, image.shape[0], image.shape[1], 1))
                 if random_rois:
                     batch_rpn_rois = np.zeros(
                         (batch_size, rpn_rois.shape[0], 4), dtype=rpn_rois.dtype)
@@ -3209,8 +3227,8 @@ class BespokeMaskRCNN(MaskRCNN):
                     name="input_gt_masks", dtype=bool)
             # 4. Semantic Masks
             input_gt_semantic = KL.Input(
-                    shape=[config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1], None],
-                    name="input_gt_semantic", dtype=bool)
+                    shape=[config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1], 1],
+                    name="input_gt_semantic", dtype=tf.float32)
 
         # Build the shared convolutional layers.
         # Bottom-up Layers
@@ -3329,7 +3347,7 @@ class BespokeMaskRCNN(MaskRCNN):
                 [target_bbox, target_class_ids, mrcnn_bbox])
             mask_loss = KL.Lambda(lambda x: mrcnn_mask_loss_graph(*x), name="mrcnn_mask_loss")(
                 [target_mask, target_class_ids, mrcnn_mask])
-            semantic_loss = KL.Lambda(lambda x: semantic_mask_loss_graph(*x), name="semantic_mask_loss")(
+            semantic_loss = KL.Lambda(lambda x: semantic_loss_graph(*x), name="semantic_mask_loss")(
                 [input_gt_semantic, semantic_mask])
 
             # Model
