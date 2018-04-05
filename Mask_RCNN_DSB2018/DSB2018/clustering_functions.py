@@ -359,7 +359,7 @@ def infer_target_id(imgs):
 
     return colour_id
 
-def run(save_filename, source_dirs=None):
+def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
 
     if source_dirs is None:
         source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
@@ -373,8 +373,13 @@ def run(save_filename, source_dirs=None):
     # code which makes csv with clusters and mosaic ids for test data
     imgs, data_frame = make_mosaic(x_all, return_connectivity = False, plot_images = False, external_df = all_df)
 
-    #all_df['target_id'] = infer_target_id(np.array([resize_img(x, 256, 256) for x in x_all]))
-    all_df['cluster_id'] = cluster_images_by_hsv(np.array(all_df['image_path']), n_clusters=3, top_colors=1)
+    if extra_dirs_for_clustering is not None:
+        extra_df = read_data_properties(extra_dirs_for_clustering, IMG_DIR_NAME)
+        all_df_with_extra = pd.concat([all_df, extra_df])
+    else:
+        all_df_with_extra = all_df 
+    
+    all_df['cluster_id'] = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)[:len(all_df)]
 
     all_df.to_csv(save_filename, index = False)
 

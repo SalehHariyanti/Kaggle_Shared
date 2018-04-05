@@ -48,7 +48,7 @@ train_group_id_file = os.path.join(data_dir, 'train_data_ids.csv')
 if not os.path.exists(train_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(train_group_id_file))
-    run(train_group_id_file, [train_dir])
+    run(train_group_id_file, [train_dir], supplementary_dir)
 
 test_group_id_file = os.path.join(data_dir, 'test_data_ids.csv')
 if not os.path.exists(test_group_id_file):
@@ -60,5 +60,5 @@ supplementary_group_id_file = os.path.join(data_dir, 'supplementary_data_ids.csv
 if not os.path.exists(supplementary_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(supplementary_group_id_file))
-    run(supplementary_group_id_file, supplementary_dir)
+    run(supplementary_group_id_file, supplementary_dir, [train_dir])
 
