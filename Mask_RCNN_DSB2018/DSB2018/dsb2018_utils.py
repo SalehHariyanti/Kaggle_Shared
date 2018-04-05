@@ -186,6 +186,15 @@ def maskrcnn_mask_to_labels(masks):
     return labels
 
 
+def maskrcnn_labels_to_mask(labels):
+    """
+    Converts labels to masks
+    """
+    mask = np.stack([(labels == i).astype(np.int) for i in range(1, labels.max() + 1)], axis = -1)
+
+    return mask
+
+
 def run_length_decode(rel, H, W, fill_value = 255, index_offset = 0):
     mask = np.zeros((H * W), np.uint8)
     if rel != '':

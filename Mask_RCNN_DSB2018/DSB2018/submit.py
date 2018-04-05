@@ -299,6 +299,40 @@ def load_dataset_images(dataset, i, batch_size):
     return images
 
 
+def combine_mosaics(_orig_names, _orig_mosaic_position, _orig_scores, _orig_labels, _mosaic_labels, _mosaic_scores):
+
+    orig_mosaic_names = [_orig_names[_orig_mosaic_position == 'down_left'],
+                                  _orig_names[_orig_mosaic_position == 'down_right'],
+                                  _orig_names[_orig_mosaic_position == 'up_left'],
+                                  _orig_names[_orig_mosaic_position == 'up_right']]
+
+    orig_mosaic_scores = [_orig_scores[_orig_mosaic_position == 'down_left'],
+                            _orig_scores[_orig_mosaic_position == 'down_right'],
+                            _orig_scores[_orig_mosaic_position == 'up_left'],
+                            _orig_scores[_orig_mosaic_position == 'up_right']]
+
+    orig_mosaic_labels = [_orig_labels[_orig_mosaic_position == 'down_left'],
+                            _orig_labels[_orig_mosaic_position == 'down_right'],
+                            _orig_labels[_orig_mosaic_position == 'up_left'],
+                            _orig_labels[_orig_mosaic_position == 'up_right']]
+
+    # Divide the mosaic prediction into four original predictions
+    full_mosaic_scores = [_mosaic_scores] * 4
+
+    full_mosaic_labels = [_mosaic_labels[orig_mosaic_labels[1].shape[0]:, :orig_mosaic_labels[0].shape[1]],
+                            _mosaic_labels[orig_mosaic_labels[1].shape[0]:, orig_mosaic_labels[0].shape[1]:],
+                            _mosaic_labels[:orig_mosaic_labels[1].shape[0], :orig_mosaic_labels[0].shape[1]],
+                            _mosaic_labels[:orig_mosaic_labels[1].shape[0]:, orig_mosaic_labels[0].shape[1]:]]
+
+    # Combine the two, giving preference to full_mosaic_labels
+    final_labels, final_scores = [combine_labels([fl, l], [fs, s]) for fl, l, fs, s in zip(full_mosaic_labels, 
+                                                                                            orig_mosaic_labels, 
+                                                                                            full_mosaic_scores, 
+                                                                                            orig_mosaic_scores)]
+
+    return final_labels, final_scores, orig_mosaic_names
+
+
 def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False, save_predictions = False, create_submission = True):
 
     # Create save_dir
@@ -354,8 +388,7 @@ def predict_model(_config, dataset, epoch = None, augment_flips = False, augment
                     r[j]['scores'] = r[j]['scores'][valid]
                     r[j]['class_ids'] = r[j]['class_ids'][valid]
                     r[j]['rois'] = r[j]['rois'][valid]
-
-    
+   
                 if dilate:
                     masks = np.stack([cv2.dilate(mask.astype(np.uint8), kernel = np.ones((3, 3), dtype = np.uint8)) for mask in np.moveaxis(masks, -1, 0)], axis = -1)
 
@@ -525,6 +558,104 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
                     save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
+                                                    '_'.join([_config.NAME for _config in configs]), 
+                                                    str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def predict_labels(_config, dataset, epoch = None):
+
+    # Recreate the model in inference mode
+    model = create_model(_config, epoch)
+    
+    labels, scores = [], []
+    # NB: we need to predict in batches of _config.BATCH_SIZE
+    # as there are layers within the model that have strides dependent on this.
+    for i in range(0, len(dataset.image_ids), _config.BATCH_SIZE):
+         # Load image
+        images = []
+        N = 0
+        for idx in range(i, i + _config.BATCH_SIZE):
+            if idx < len(dataset.image_ids):
+                N += 1
+                images.append(dataset.load_image(dataset.image_ids[idx]))
+            else:
+                images.append(images[-1])
+
+        # Run detection
+        r = model.detect(images, verbose=0)
+        
+        # Reduce to N images
+        for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
+
+            if j < N:   
+
+                masks = r[j]['masks'] #[H, W, N] instance binary masks
+                
+                labels.append(maskrcnn_mask_to_labels(masks))
+                scores.append(r[j]['scores'])
+                
+    return np.array(labels), np.array(scores)
+
+
+def predict_mosaics_plus_originals(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, save_predictions = False, create_submission = True):
+    """
+    Predict mosaics (config/dataset 0); deconstruct to originals.
+    Predict originals (config/dataset 1).
+    Combine mosaics with originals that have no overlap with mosaics (excluding originals that cross an edge... edge cases unreliable).
+    """
+
+    assert len(configs) == len(datasets) == 2
+
+    # Predict full mosaic images using predict_mosaic_labels + configs/datasets[0]
+    mosaic_id = np.array([datasets[0].image_info[i]['mosaic_id'] for i in range(len(datasets[0].image_ids))])
+    mosaic_labels, mosaic_scores = predict_labels(configs[0], datasets[0], epoch = epoch)
+
+    # Extract mosaic info from the original images
+    n_images = len(datasets[1].image_ids)
+    orig_names = np.array([datasets[1].image_info[i]['name'] for i in range(n_images)])
+    orig_mosaic_id = np.array([datasets[1].image_info[i]['mosaic_id'] for i in range(n_images)])
+    orig_mosaic_position = np.array([datasets[1].image_info[i]['mosaic_position'] for i in range(n_images)])
+
+    # Predict original images using predict_labels + configs/datasets[1]
+    labels, scores = predict_labels(configs[1], datasets[1], epoch = epoch)
+
+    # Combine mosaic predictions with originals, giving preference to mosaics
+    assert np.unique(mosaic_id) == np.unique(orig_mosaic_id)
+
+    for mosaic in np.unique(mosaic_id):
+
+        mosaic_idx = np.argwhere(orig_mosaic_id == mosaic).reshape(-1,)
+
+        if len(mosaic_idx) > 1:
+            # Image is part of a mosaic.
+            # Order the original predictions according to down-left/down-right/up-left/up-right
+            _orig_names = orig_names[mosaic_idx]
+            _orig_mosaic_position = orig_mosaic_position[mosaic_idx]
+            _orig_labels = labels[mosaic_idx]
+            _orig_scores = scores[mosaic_idx]
+
+            final_labels, final_scores, final_names = combine_mosaics(_orig_names, _orig_mosaic_position, _orig_scores, _orig_labels, 
+                                                                      mosaic_labels[mosaic_id == mosaic], mosaic_scores[mosaic_id == mosaic])
+
+            # Add to predictions
+            for fl, fs, img_name in zip(final_labels, final_scores, final_names):
+                masks = maskrcnn_labels_to_mask(fl)        
+                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, fs)
+                ImageId += ImageId_batch
+                EncodedPixels += EncodedPixels_batch
+
+        else:
+            # Predictions are the same as image not part of a mosaic
+            masks = maskrcnn_labels_to_mask(labels[mosaic_idx])
+            img_name = datasets[1].image_info[mosaic_idx]['name']
+        
+            ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, scores[mosaic_idx])
+            ImageId += ImageId_batch
+            EncodedPixels += EncodedPixels_batch
 
 
     if create_submission:
@@ -709,11 +840,13 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
             )
         )
 
+
 def main():
     if getpass.getuser() == 'antor':
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
     else:
-        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
+        #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
+        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig, 'predict_mosaics_plus_originals', epoch = 22)
 
 if __name__ == '__main__':
     main()

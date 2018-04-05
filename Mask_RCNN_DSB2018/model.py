@@ -2008,7 +2008,7 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
 
 
 def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
-                   batch_size=1, detection_targets=False, show_image_each = np.nan):
+                   batch_size=1, detection_targets=False, show_image_each = 0):
     """A generator that returns images and corresponding target class ids,
     bounding box deltas, and masks.
 
@@ -2045,7 +2045,6 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     """
     b = 0  # batch item index
     image_index = -1
-    item_index = -1
     image_ids = np.copy(dataset.image_ids)
     error_count = 0
 
@@ -2062,7 +2061,6 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
         try:
             # Increment index to pick next image. Shuffle if at the start of an epoch.
             image_index = (image_index + 1) % len(image_ids)
-            item_index += 1
             if shuffle and image_index == 0:
                 np.random.shuffle(image_ids)
 
@@ -2137,8 +2135,8 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
             batch_rpn_match[b] = rpn_match[:, np.newaxis]
             batch_rpn_bbox[b] = rpn_bbox
 
-            if (item_index % show_image_each == 0) and show_image is not None:
-                show_image(image, 0, 1.)
+            if show_image is not None and (show_image_each > 0) and (np.random.randint(show_image_each) == 0):
+                show_image(image)
 
             batch_images[b] = mold_image(image.astype(np.float32), config)
             batch_gt_class_ids[b, :gt_class_ids.shape[0]] = gt_class_ids
@@ -2684,7 +2682,7 @@ class MaskRCNN():
         self.checkpoint_path = self.checkpoint_path.replace(
             "*epoch*", "{epoch:04d}")
 
-    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, augment_val = False, show_image_each = np.nan):
+    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, augment_val = False, show_image_each = 0):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
