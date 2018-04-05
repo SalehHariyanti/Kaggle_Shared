@@ -1,4 +1,5 @@
 import numpy as np
+from utils import *
 
 
 def create_id(x_in):
@@ -216,3 +217,62 @@ def labels_from_rles(mask_rles, mask_shape):
         labels += (mask * (i + 1))
 
     return labels, masks
+
+
+def combine_boxes(boxes, masks, scores, threshold):
+    """
+    Combines boxes if their IOU is above threshold.
+    boxes: [N, (y1, x1, y2, x2)]. Notice that (y2, x2) lays outside the box.
+    threshold: Float. IoU threshold to use for filtering.
+    """
+    assert boxes.shape[0] > 0
+    if boxes.dtype.kind != "f":
+        boxes = boxes.astype(np.float32)
+
+    # Compute box areas
+    y1 = boxes[:, 0]
+    x1 = boxes[:, 1]
+    y2 = boxes[:, 2]
+    x2 = boxes[:, 3]
+    area = (y2 - y1) * (x2 - x1)
+
+    # Get indicies of boxes 
+    ixs = np.arange(boxes.shape[0])
+    n_joins = np.ones(ixs.shape)
+    ixs_pick = []
+
+    while len(ixs) > 0:
+
+        # Pick box and add its index to the list
+        i = ixs[0]
+        ixs_pick.append(i)
+
+        # Join this box to all other boxes with iou > threshold
+        search_completed = False
+
+        while not search_completed:
+            # Compute IoU of the picked box with the rest
+            iou = compute_iou(boxes[i], boxes[ixs[1:]], area[i], area[ixs[1:]])
+            # Identify boxes with IoU over the threshold. This
+            # returns indicies into ixs[1:], so add 1 to get
+            # indicies into ixs.
+            join_ixs = np.where(iou > threshold)[0] + 1
+            if len(join_ixs) > 0:
+                new_box = np.array([min([boxes[i, 0], np.min(boxes[join_ixs, 0])]),
+                                    min([boxes[i, 2], np.min(boxes[join_ixs, 2])]),
+                                    max([boxes[i, 1], np.max(boxes[join_ixs, 1])]),
+                                    max([boxes[i, 3], np.max(boxes[join_ixs, 3])])])
+                new_mask = np.sum(np.stack([masks[:, :, i]] + [masks[:, :, j] for j in join_ixs], axis = -1), axis = -1)
+                boxes[i] = new_box
+                masks[:, :, i] = new_mask
+                scores[i] = (scores[i] + np.sum(scores[join_ixs]))
+                n_joins[i] = n_joins[i] + len(join_ixs)
+                # Remove indicies of the overlapped boxes.
+                ixs = np.delete(ixs, join_ixs)
+            else:
+                search_completed = True
+                ixs = np.delete(ixs, 0)
+    ixs_pick = np.array(ixs_pick)
+
+    return ixs_pick, boxes[ixs_pick], scores[ixs_pick], (masks[:, :, ixs_pick] > 0).astype(np.int), n_joins[ixs_pick]
+

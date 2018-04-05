@@ -10,6 +10,7 @@ import utils
 import dsb2018_utils as du
 import scipy
 import cv2
+from copy import deepcopy
 
 import visualize
 import matplotlib.pyplot as plt
@@ -24,7 +25,7 @@ def base_test_dataset():
     return dataset
 
 
-def maskrcnn_detect_flips(model, images, threshold):
+def maskrcnn_detect_flips(model, images, threshold, voting_threshold = 0.5, use_nms = False):
     """
     Rotates images by 4 x 90 degrees and combines results via non-maximum suppression
     """
@@ -54,8 +55,10 @@ def maskrcnn_detect_flips(model, images, threshold):
     for i in range(len(images)):
 
         img_results_flip = du.concatenate_list_of_dicts([rf[i] for rf in results_flip])
-        nms_idx = utils.non_max_suppression(img_results_flip['rois'], img_results_flip['scores'].reshape(-1, ), threshold)
-        img_results_flip = du.reduce_dict(img_results_flip, nms_idx)
+        if use_nms:
+            img_results_flip = reduce_via_nms(img_results_flip, threshold)
+        else:
+            img_results_flip = reduce_via_voting(img_results_flip, threshold, voting_threshold)
 
         # Reshape masks
         img_results_flip['masks'] = np.moveaxis(img_results_flip['masks'], 0, -1)
@@ -67,9 +70,12 @@ def maskrcnn_detect_flips(model, images, threshold):
     return results
 
 
-def maskrcnn_detect_scale(model, images, threshold, scales = [0.6, 0.8, 1.2, 1.4]):
+def maskrcnn_detect_scale(model, images, threshold, voting_threshold = 0.5, scales = [0.8, 1.2], use_nms = False):
     """
-    Rescales images to specified scales and combines results via non-maximum suppression
+    Rescales images to specified scales and combines results.
+    If use_nms = True, we combine via non-maximum suppression.
+    If use_nms = False, we combine by joining masks with box IOUs above the threshold
+    and then subselecting mask pixels that had more than a specified number of votes.
     """
 
     images_scale = [images] + [[scipy.misc.imresize(img, (round(img.shape[0] * scale), round(img.shape[1] * scale))) for img in images] for scale in scales]
@@ -93,8 +99,10 @@ def maskrcnn_detect_scale(model, images, threshold, scales = [0.6, 0.8, 1.2, 1.4
     for i in range(len(images)):
 
         img_results_scale = du.concatenate_list_of_dicts([rf[i] for rf in results_scale])
-        nms_idx = utils.non_max_suppression(img_results_scale['rois'], img_results_scale['scores'].reshape(-1, ), threshold)
-        img_results_scale = du.reduce_dict(img_results_scale, nms_idx)
+        if use_nms:
+            img_results_scale = reduce_via_nms(img_results_scale, threshold)
+        else:
+            img_results_scale = reduce_via_voting(img_results_scale, threshold, voting_threshold)
 
         # Reshape masks
         img_results_scale['masks'] = np.moveaxis(img_results_scale['masks'], 0, -1)
@@ -233,6 +241,39 @@ def maskrcnn_detect_tiles(model, images, grid_shape = (2, 2), nms_threshold = 0.
                                     ['img', 'tiled predictions (less borders)', 'orig predictions', 'combined predictions'], 1, 4)
 
     return results
+
+
+def reduce_via_nms(img_results, threshold):
+    nms_idx = utils.non_max_suppression(img_results['rois'], img_results['scores'].reshape(-1, ), threshold)
+    return du.reduce_dict(img_results, nms_idx)
+
+
+def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
+
+    results = deepcopy(img_results)
+   
+    # Combine masks with overlaps greater than threshold
+    idx, boxes, masks, scores, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
+
+    # Select masks based on voting threshold
+    masks = np.moveaxis(masks, -1, 0)
+    avg_masks = masks / n_votes
+    masks = (np.multiply(masks, avg_masks > voting_threshold) > 0).astype(np.int)
+    valid_masks = np.sum(masks, axis = (1, 2)) > 0
+
+    # Reduce to masks that are still valid
+    idx = idx[valid_masks]
+    boxes = boxes[valid_masks]
+    masks = masks[valid_masks, :, :]
+    scores = scores[valid_masks]
+
+    img_results = du.reduce_dict(img_results, idx)
+
+    img_results['rois'] = boxes
+    img_results['masks'] = masks
+    img_results['scores'] = scores
+
+    return img_results
 
 
 def tile_image(img, grid):
@@ -915,7 +956,7 @@ def main():
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig, 'predict_mosaics_plus_originals', epoch = 22, create_submission = True, save_predictions = True)
+        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', epoch = 14, create_submission = True, save_predictions = False)
 
 if __name__ == '__main__':
     main()
