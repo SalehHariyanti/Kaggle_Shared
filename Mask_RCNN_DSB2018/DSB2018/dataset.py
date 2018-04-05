@@ -25,15 +25,16 @@ class DSB2018_Dataset(utils.Dataset):
 
     Cache = Enum("Cache",'NONE DISK DISK_MASKS')
 
-    def __init__(self, class_map=None, invert_type = 1, cache=Cache.DISK):
+    def __init__(self, class_map=None, invert_type = 1, to_grayscale=True, cache=Cache.DISK):
         self._image_ids = []
         self.image_info = []
         # Background is always the first class
         self.class_info = [{"source": "", "id": 0, "name": "BG"}]
         self.source_class_ids = {}
         self.invert_type = invert_type
+        self.to_grayscale = to_grayscale
         self.cache = cache
-        
+
     def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_colour_id = None, use_mosaics=False):
         # Add classes
         self.add_class("nuclei", 1, "nuclei") # source, id, name. id = 0s is BG
@@ -104,7 +105,7 @@ class DSB2018_Dataset(utils.Dataset):
                     )
       
     def get_cache_dir(self, is_mask):
-        return os.path.join(data_dir, '_'.join(('maskrcnn_mask_cache' if is_mask else 'maskrcnn_image_cache', str(self.invert_type))))
+        return os.path.join(data_dir, '_'.join(('maskrcnn_mask_cache' if is_mask else 'maskrcnn_image_cache', str(self.invert_type), str(self.to_grayscale))))
 
     def load_image(self, image_id):
         """Load the specified image and return a [H,W,3] Numpy array.
@@ -136,15 +137,17 @@ class DSB2018_Dataset(utils.Dataset):
                     image = np.stack([image] * 3, axis = -1)
                 elif image.shape[2] != 3:
                     image = image[:,:,:3]
+                
                 # Grey and invert
-                image = skimage.color.rgb2gray(image.astype('uint8'))
-                # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
-                image = (image * 255).astype(np.uint8)
-                if self.invert_type == 1:
-                    image = self.invert_img(image)
-                elif self.invert_type == 2:
-                    image = self.invert_img(self.invert_img(image), cutoff = -1)
-                image = np.stack([image] * 3, axis = -1)
+                if self.to_grayscale:
+                    image = skimage.color.rgb2gray(image.astype('uint8'))
+                    # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+                    image = (image * 255).astype(np.uint8)
+                    if self.invert_type == 1:
+                        image = self.invert_img(image)
+                    elif self.invert_type == 2:
+                        image = self.invert_img(self.invert_img(image), cutoff = -1)
+                    image = np.stack([image] * 3, axis = -1)
 
                 if self.cache == DSB2018_Dataset.Cache.DISK:
                     np.save(image_file, image)
@@ -157,15 +160,17 @@ class DSB2018_Dataset(utils.Dataset):
                 image = np.stack([image] * 3, axis = -1)
             elif image.shape[2] != 3:
                 image = image[:,:,:3]
+
             # Grey and invert
-            image = skimage.color.rgb2gray(image.astype('uint8'))
-            # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
-            image = (image * 255).astype(np.uint8)
-            if self.invert_type == 1:
-                image = self.invert_img(image)
-            elif self.invert_type == 2:
-                image = self.invert_img(self.invert_img(image), cutoff = -1)
-            image = np.stack([image] * 3, axis = -1)
+            if self.to_grayscale:
+                image = skimage.color.rgb2gray(image.astype('uint8'))
+                # NB: skimage.color.rgb2gray converts automatically to float 0-1 scale!!!!
+                image = (image * 255).astype(np.uint8)
+                if self.invert_type == 1:
+                    image = self.invert_img(image)
+                elif self.invert_type == 2:
+                    image = self.invert_img(self.invert_img(image), cutoff = -1)
+                image = np.stack([image] * 3, axis = -1)
 
         return image
     
