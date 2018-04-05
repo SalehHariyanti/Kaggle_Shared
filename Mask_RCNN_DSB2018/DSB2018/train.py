@@ -105,7 +105,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert(training = True):
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
-        return _config, dataset_test
+        return _config, dataset
 
 
 def train_resnet101_flips_alldata_minimask12_double_invert_masksizes(training = True):
@@ -274,6 +274,53 @@ def train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval(training=True)
         dataset.add_nuclei(test_mosaics_dir, 'test', shuffle = False, use_mosaics = True)
         dataset.prepare()
         return _config, dataset
+
+
+def train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig(training=True):
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                               architecture = 'resnet101',
+                               mini_mask_shape = 12,
+                               identifier = 'double_invert',
+                               augmentation_dict = {'dim_ordering': 'tf',
+                                                    'horizontal_flip': True,
+                                                    'vertical_flip': True})
+
+    if training:
+        # Training dataset
+        dataset_train = DSB2018_Dataset(invert_type = 2)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+        dataset_train.prepare()
+
+        # Validation dataset
+        dataset_val = DSB2018_Dataset(invert_type = 2)
+        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+        dataset_val.prepare()
+
+        # Create model in training mode
+        model = modellib.MaskRCNN(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=30,
+                    layers='all')
+    else:
+        configs = [_config] * 2
+
+        # Mosaics dataset:
+        dataset1 = DSB2018_Dataset(invert_type = 2)
+        dataset1.add_nuclei(test_mosaics_dir, 'test', shuffle = False, use_mosaics=True)
+        dataset1.prepare()
+        # Original dataset
+        dataset2 = DSB2018_Dataset(invert_type = 2)
+        dataset2.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset2.prepare()
+
+        dataset = [dataset1, dataset2]
+
+        return configs, dataset
 
 
 def main():
