@@ -190,7 +190,7 @@ def maskrcnn_labels_to_mask(labels):
     """
     Converts labels to masks
     """
-    mask = np.stack([(labels == i).astype(np.int) for i in range(1, labels.max() + 1)], axis = -1)
+    mask = np.stack([(labels == i).astype(np.int) for i in range(1, int(labels.max()) + 1)], axis = -1)
 
     return mask
 
