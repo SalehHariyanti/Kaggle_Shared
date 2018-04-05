@@ -301,36 +301,86 @@ def load_dataset_images(dataset, i, batch_size):
 
 def combine_mosaics(_orig_names, _orig_mosaic_position, _orig_scores, _orig_labels, _mosaic_labels, _mosaic_scores):
 
-    orig_mosaic_names = [_orig_names[_orig_mosaic_position == 'down_left'],
-                                  _orig_names[_orig_mosaic_position == 'down_right'],
-                                  _orig_names[_orig_mosaic_position == 'up_left'],
-                                  _orig_names[_orig_mosaic_position == 'up_right']]
+    orig_mosaic_names = [_orig_names[_orig_mosaic_position == 'down_left'][0],
+                            _orig_names[_orig_mosaic_position == 'down_right'][0],
+                            _orig_names[_orig_mosaic_position == 'up_left'][0],
+                            _orig_names[_orig_mosaic_position == 'up_right'][0]]
 
-    orig_mosaic_scores = [_orig_scores[_orig_mosaic_position == 'down_left'],
-                            _orig_scores[_orig_mosaic_position == 'down_right'],
-                            _orig_scores[_orig_mosaic_position == 'up_left'],
-                            _orig_scores[_orig_mosaic_position == 'up_right']]
+    orig_mosaic_scores = [_orig_scores[_orig_mosaic_position == 'down_left'][0],
+                            _orig_scores[_orig_mosaic_position == 'down_right'][0],
+                            _orig_scores[_orig_mosaic_position == 'up_left'][0],
+                            _orig_scores[_orig_mosaic_position == 'up_right'][0]]
 
-    orig_mosaic_labels = [_orig_labels[_orig_mosaic_position == 'down_left'],
-                            _orig_labels[_orig_mosaic_position == 'down_right'],
-                            _orig_labels[_orig_mosaic_position == 'up_left'],
-                            _orig_labels[_orig_mosaic_position == 'up_right']]
+    orig_mosaic_labels = [_orig_labels[_orig_mosaic_position == 'down_left'][0],
+                            _orig_labels[_orig_mosaic_position == 'down_right'][0],
+                            _orig_labels[_orig_mosaic_position == 'up_left'][0],
+                            _orig_labels[_orig_mosaic_position == 'up_right'][0]]
 
     # Divide the mosaic prediction into four original predictions
-    full_mosaic_scores = [_mosaic_scores] * 4
-
     full_mosaic_labels = [_mosaic_labels[orig_mosaic_labels[1].shape[0]:, :orig_mosaic_labels[0].shape[1]],
                             _mosaic_labels[orig_mosaic_labels[1].shape[0]:, orig_mosaic_labels[0].shape[1]:],
                             _mosaic_labels[:orig_mosaic_labels[1].shape[0], :orig_mosaic_labels[0].shape[1]],
                             _mosaic_labels[:orig_mosaic_labels[1].shape[0]:, orig_mosaic_labels[0].shape[1]:]]
 
+    # Extract the scores relating to each part of the divided mosaic
+    full_mosaic_scores = []
+    for l in full_mosaic_labels:
+        unique_labels = np.unique(l).astype(np.int)
+        score_idx = unique_labels[unique_labels > 0] - 1
+        full_mosaic_scores.append(_mosaic_scores[score_idx])
+
     # Combine the two, giving preference to full_mosaic_labels
-    final_labels, final_scores = [combine_labels([fl, l], [fs, s]) for fl, l, fs, s in zip(full_mosaic_labels, 
-                                                                                            orig_mosaic_labels, 
-                                                                                            full_mosaic_scores, 
-                                                                                            orig_mosaic_scores)]
+    output = [combine_labels([fl, l], [fs, s]) for fl, l, fs, s in zip(full_mosaic_labels, 
+                                                                        orig_mosaic_labels, 
+                                                                        full_mosaic_scores, 
+                                                                        orig_mosaic_scores)]
+    final_labels = [o[0] for o in output]
+    final_scores = [o[1] for o in output]
 
     return final_labels, final_scores, orig_mosaic_names
+
+
+def combine_labels(label_list, score_list, border_threshold = 5):
+    """
+    label_list, score_list: length 2
+    First element corresponds to your baseline predictions.
+    The second corresponds to the predictions you wish to use provided
+    they do not overlap with your baseline predictions and that they are not within
+    border_threshold of the edge.
+    """
+
+    final_labels = label_list[0].copy()
+
+    overlap = np.multiply(label_list[0] > 0, label_list[1] > 0)
+
+    border = np.ones_like(overlap); border[border_threshold : -border_threshold, border_threshold : -border_threshold] = 0
+
+    # A label from the second set is invalid if it overlaps with the first set, or if it broaches the border
+    invalid_overlap = np.unique(label_list[1][np.multiply(label_list[1], overlap) > 0])
+    invalid_border = np.unique(label_list[1][np.multiply(label_list[1], border) > 0])
+
+    # Zero out invalid labels
+    label_f = label_list[1].flatten()
+    label_f[du.ismember(label_f, np.concatenate((invalid_overlap, invalid_border)), index_requested = False)] = 0
+    # Visual:
+    if False:
+        from visualize import plot_multiple_images; plot_multiple_images(label_list + [label_f.reshape(final_labels.shape)], nrows = 1, ncols = 3)
+
+    # Retrieve the scores corresponding to the labels you have left
+    add_labels = np.unique(label_f).astype(np.int)
+    add_scores = score_list[1][add_labels[add_labels > 0] - 1]
+
+    # Artifically add final_labels.max() to the additional labels so that they don't clash when combined
+    label_f[label_f > 0] = label_f[label_f > 0] + final_labels.max()
+
+    # Create final labels
+    final_labels = final_labels + label_f.reshape(final_labels.shape)
+    # Rebase to start from 1 -> N without gaps
+    final_labels = du.create_id(final_labels.flatten()).reshape(final_labels.shape)
+    # Create final scores
+    final_scores = np.concatenate((score_list[0], add_scores))
+
+    return final_labels, final_scores
 
 
 def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False, save_predictions = False, create_submission = True):
@@ -595,7 +645,7 @@ def predict_labels(_config, dataset, epoch = None):
 
                 masks = r[j]['masks'] #[H, W, N] instance binary masks
                 
-                labels.append(maskrcnn_mask_to_labels(masks))
+                labels.append(du.maskrcnn_mask_to_labels(masks))
                 scores.append(r[j]['scores'])
                 
     return np.array(labels), np.array(scores)
@@ -608,10 +658,18 @@ def predict_mosaics_plus_originals(configs, datasets, epoch = None, augment_flip
     Combine mosaics with originals that have no overlap with mosaics (excluding originals that cross an edge... edge cases unreliable).
     """
 
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
+
     assert len(configs) == len(datasets) == 2
 
+    ImageId = []
+    EncodedPixels = []
+
     # Predict full mosaic images using predict_mosaic_labels + configs/datasets[0]
-    mosaic_id = np.array([datasets[0].image_info[i]['mosaic_id'] for i in range(len(datasets[0].image_ids))])
+    mosaic_id = np.array([int(datasets[0].image_info[i]['mosaic_id']) for i in range(len(datasets[0].image_ids))])
     mosaic_labels, mosaic_scores = predict_labels(configs[0], datasets[0], epoch = epoch)
 
     # Extract mosaic info from the original images
@@ -624,7 +682,7 @@ def predict_mosaics_plus_originals(configs, datasets, epoch = None, augment_flip
     labels, scores = predict_labels(configs[1], datasets[1], epoch = epoch)
 
     # Combine mosaic predictions with originals, giving preference to mosaics
-    assert np.unique(mosaic_id) == np.unique(orig_mosaic_id)
+    assert np.array_equal(np.unique(mosaic_id), np.unique(orig_mosaic_id))
 
     for mosaic in np.unique(mosaic_id):
 
@@ -639,28 +697,39 @@ def predict_mosaics_plus_originals(configs, datasets, epoch = None, augment_flip
             _orig_scores = scores[mosaic_idx]
 
             final_labels, final_scores, final_names = combine_mosaics(_orig_names, _orig_mosaic_position, _orig_scores, _orig_labels, 
-                                                                      mosaic_labels[mosaic_id == mosaic], mosaic_scores[mosaic_id == mosaic])
+                                                                      mosaic_labels[mosaic_id == mosaic][0], mosaic_scores[mosaic_id == mosaic][0])
 
             # Add to predictions
-            for fl, fs, img_name in zip(final_labels, final_scores, final_names):
-                masks = maskrcnn_labels_to_mask(fl)        
+            for fl, fs, img_name, pos in zip(final_labels, final_scores, final_names, ['down_left', 'down_right', 'up_left', 'up_right']):
+
+                masks = du.maskrcnn_labels_to_mask(fl)        
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, fs)
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    image_info = {'mosaic_id': mosaic, 'mosaic_position': pos, 'name': img_name}
+                    save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], image_info)
+
         else:
             # Predictions are the same as image not part of a mosaic
-            masks = maskrcnn_labels_to_mask(labels[mosaic_idx])
-            img_name = datasets[1].image_info[mosaic_idx]['name']
+            masks = du.maskrcnn_labels_to_mask(labels[mosaic_idx][0])
+            img_name = datasets[1].image_info[mosaic_idx[0]]['name']
         
-            ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, scores[mosaic_idx])
+            ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, scores[mosaic_idx][0])
             ImageId += ImageId_batch
             EncodedPixels += EncodedPixels_batch
 
+            if save_predictions:
+                # Extract final masks from EncodedPixels_batch here and save
+                # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], datasets[1].image_info[mosaic_idx[0]])
 
     if create_submission:
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
-                                                    '_'.join([_config.NAME for _config in configs]), 
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_mosaics', 
+                                                    configs[0].NAME, 
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
@@ -846,7 +915,7 @@ def main():
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig, 'predict_mosaics_plus_originals', epoch = 22)
+        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig, 'predict_mosaics_plus_originals', epoch = 22, create_submission = True, save_predictions = True)
 
 if __name__ == '__main__':
     main()
