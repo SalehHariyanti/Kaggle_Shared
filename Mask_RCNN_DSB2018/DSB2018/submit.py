@@ -1007,7 +1007,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 def main():
     if getpass.getuser() == 'antor':
-        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
+        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
         predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 

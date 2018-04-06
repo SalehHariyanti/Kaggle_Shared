@@ -236,9 +236,11 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color
                                                     'vertical_flip': True, 
                                                     'rots':True})
 
+    dataset_kwargs = { 'to_grayscale' : False , 'cache' : DSB2018_Dataset.Cache.NONE }
+
     if training:
         # Training dataset
-        dataset_train = DSB2018_Dataset(to_grayscale = False, cache = DSB2018_Dataset.Cache.NONE)
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
         dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1)
         dataset_train.prepare()
 
@@ -249,14 +251,14 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color
     
         model.train(dataset_train, None,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=20,
+                    epochs=80,
                     layers='all',
                     show_image_each = 100,
                     balance_by_cluster_id = True)
 
     else:
 
-        dataset_test = DSB2018_Dataset(invert_type = 2)
+        dataset_test = DSB2018_Dataset(**dataset_kwargs)
         dataset_test.add_nuclei(test_dir, 'test', shuffle = False)
         dataset_test.prepare()
         return _config, dataset_test

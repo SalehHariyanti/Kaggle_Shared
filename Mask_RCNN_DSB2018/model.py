@@ -2203,7 +2203,6 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
 
         running_lists_of_cluster_ids_to_image_id = copy.deepcopy(cluster_ids_to_image_id)
 
-        print(unique_cluster_ids)
         for k,v in cluster_ids_to_image_id.items():
             random.shuffle(running_lists_of_cluster_ids_to_image_id[k])
             print("Cluster {} has {} items".format(k, len(v)))
