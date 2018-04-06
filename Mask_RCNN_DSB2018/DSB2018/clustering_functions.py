@@ -1,6 +1,6 @@
 import pandas as pd                 
 import numpy as np                                       
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 from scipy.ndimage.morphology import binary_fill_holes
 import cv2                         # To read and manipulate images
 import os                          # For filepath, directory handling
@@ -103,10 +103,13 @@ def cluster_images_by_hsv(img_paths, n_clusters=5, top_colors=2):
         dominant_hsv.append(res1)
     dominant_hsv = np.array(dominant_hsv)
     dominant_hsv = dominant_hsv.reshape(dominant_hsv.shape[0], -1)
-    print('Calculating clusters')
-    kmeans = KMeans(n_clusters=n_clusters).fit(dominant_hsv)
+    print('Calculating clusters using KMeans')
+    kmeans = KMeans(n_clusters=n_clusters, n_init=100, max_iter=500, random_state=0).fit(dominant_hsv)
     print('Images clustered')
-    return kmeans.predict(dominant_hsv)
+    print('Calculating clusters using DBSCAN')
+    dbscan = DBSCAN(eps=7).fit(dominant_hsv)
+    print('Images clustered using DBSCAN')
+    return kmeans.predict(dominant_hsv), dbscan.labels_
 
 def plot_images(selected_images_df,images_rows=4,images_cols=8,plot_figsize=4):
     """Plot image_rows*image_cols of selected images. Used to visualy check clusterization"""
@@ -379,7 +382,8 @@ def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
     else:
         all_df_with_extra = all_df 
     
-    all_df['cluster_id'] = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)[:len(all_df)]
+    kmeans_cluster, dbscan_cluster = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)
+    all_df['cluster_id'], all_df['alt_cluster_id'] = kmeans_cluster[:len(all_df)], dbscan_cluster[:len(all_df)]
 
     all_df.to_csv(save_filename, index = False)
 
