@@ -35,7 +35,7 @@ class DSB2018_Dataset(utils.Dataset):
         self.to_grayscale = to_grayscale
         self.cache = cache
 
-    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_colour_id = None, use_mosaics=False):
+    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_cluster_id = None, use_mosaics=False):
         # Add classes
         self.add_class("nuclei", 1, "nuclei") # source, id, name. id = 0s is BG
 
@@ -72,11 +72,11 @@ class DSB2018_Dataset(utils.Dataset):
             image_ids = [os.path.split(name)[-1] for name in image_names]
 
             # Get ids
-            colour_id, mosaic_id, mosaic_position = get_ids(image_ids)
+            cluster_id, mosaic_id, mosaic_position = get_ids(image_ids)
 
             # Strip down to target colours only
-            if target_colour_id is not None:
-                idx = du.ismember(colour_id, target_colour_id, index_requested = False)
+            if target_cluster_id is not None:
+                idx = du.ismember(cluster_id, target_cluster_id, index_requested = False)
                 idx = np.argwhere(idx).reshape(-1, )
             else:
                 idx = np.arange(len(image_names))
@@ -89,7 +89,7 @@ class DSB2018_Dataset(utils.Dataset):
                     path = os.path.join(dirs[i], image_ids[i] + '.png'),    
                     mask_dir = mask_dirs[i],
                     name = image_ids[i],
-                    colour_id = colour_id[i],
+                    cluster_id = cluster_id[i],
                     mosaic_id = mosaic_id[i],
                     mosaic_position = mosaic_position[i],
                     is_mosaic = False
@@ -275,7 +275,7 @@ def get_ids(file_id):
     mosaic_file_id = np.array(mosaic_df['img_id'])
     mosaic_idx = np.array(mosaic_df['mosaic_idx'])
     mosaic_position = np.array(mosaic_df['mosaic_position'])
-    target_id = np.array(mosaic_df['target_id'])
+    cluster_id = np.array(mosaic_df['cluster_id'])
 
     file_id = np.array(file_id)
 
@@ -288,7 +288,7 @@ def get_ids(file_id):
     target = np.zeros(file_id.shape, dtype = np.int)
 
     mosaic_id[A] = mosaic_idx[B[A]]
-    target[A] = target_id[B[A]]
+    target[A] = cluster_id[B[A]]
     mosaic_pos[A] = mosaic_position[B[A]]
 
     if np.any(np.logical_not(A)):

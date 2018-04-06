@@ -224,11 +224,11 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         dataset_test.prepare()
         return _config, dataset_test
 
-def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color(training=True):
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced(training=True):
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                mini_mask_shape = 12,
-                               identifier = 'double_invert_mosaics',
+                               identifier = 'flips_rots_color_balanced',
                                augmentation_crop = 1.,
                                fn_load = 'load_image_gt_augment',
                                augmentation_dict = {'dim_ordering': 'tf',
@@ -251,7 +251,8 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color
                     learning_rate=_config.LEARNING_RATE,
                     epochs=20,
                     layers='all',
-                    show_image_each = 100)
+                    show_image_each = 100,
+                    balance_by_cluster_id = True)
 
     else:
 
@@ -430,7 +431,7 @@ def train_resnet101_flips_256_minimask12_double_invert(training = True):
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if getpass.getuser() == 'antor':
-        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color()
+        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced()
     else:
         train_resnet101_flips_256_minimask12_double_invert()
 
