@@ -50,7 +50,7 @@ def maskrcnn_detect_flips(model, images, threshold, voting_threshold = 0.5, use_
             # Reshape masks so that they can be concatenated correctly
             results_flip[j][i]['masks'] = np.moveaxis(results_flip[j][i]['masks'], -1, 0)
 
-    # Carry out non-maximum suppression to reduce results_flip for each image to a single set of results
+    # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
     results = []
     for i in range(len(images)):
 
@@ -58,7 +58,7 @@ def maskrcnn_detect_flips(model, images, threshold, voting_threshold = 0.5, use_
         if use_nms:
             img_results_flip = reduce_via_nms(img_results_flip, threshold)
         else:
-            img_results_flip = reduce_via_voting(img_results_flip, threshold, voting_threshold)
+            img_results_flip = reduce_via_voting(img_results_flip, threshold, voting_threshold, n_votes = len(results_flip))
 
         # Reshape masks
         img_results_flip['masks'] = np.moveaxis(img_results_flip['masks'], 0, -1)
@@ -253,7 +253,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
     results = deepcopy(img_results)
    
     # Combine masks with overlaps greater than threshold
-    idx, boxes, masks, scores, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
+    idx, boxes, scores, masks, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
 
     # Select masks based on voting threshold
     masks = np.moveaxis(masks, -1, 0)
@@ -268,7 +268,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
     scores = scores[valid_masks]
 
     img_results = du.reduce_dict(img_results, idx)
-
+     
     img_results['rois'] = boxes
     img_results['masks'] = masks
     img_results['scores'] = scores
@@ -956,7 +956,7 @@ def main():
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', epoch = 14, create_submission = True, save_predictions = False)
+        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', augment_flips = True, nms_threshold = 0.5, create_submission = True, save_predictions = False)
 
 if __name__ == '__main__':
     main()

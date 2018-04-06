@@ -219,7 +219,7 @@ def labels_from_rles(mask_rles, mask_shape):
     return labels, masks
 
 
-def combine_boxes(boxes, masks, scores, threshold):
+def combine_boxes(boxes, scores, masks, threshold):
     """
     Combines boxes if their IOU is above threshold.
     boxes: [N, (y1, x1, y2, x2)]. Notice that (y2, x2) lays outside the box.
@@ -258,14 +258,14 @@ def combine_boxes(boxes, masks, scores, threshold):
             # indicies into ixs.
             join_ixs = np.where(iou > threshold)[0] + 1
             if len(join_ixs) > 0:
-                new_box = np.array([min([boxes[i, 0], np.min(boxes[join_ixs, 0])]),
-                                    min([boxes[i, 2], np.min(boxes[join_ixs, 2])]),
-                                    max([boxes[i, 1], np.max(boxes[join_ixs, 1])]),
-                                    max([boxes[i, 3], np.max(boxes[join_ixs, 3])])])
-                new_mask = np.sum(np.stack([masks[:, :, i]] + [masks[:, :, j] for j in join_ixs], axis = -1), axis = -1)
+                new_box = np.array([min([boxes[i, 0], np.min(boxes[ixs[join_ixs], 0])]),
+                                    max([boxes[i, 1], np.max(boxes[ixs[join_ixs], 1])]),
+                                    min([boxes[i, 2], np.min(boxes[ixs[join_ixs], 2])]),
+                                    max([boxes[i, 3], np.max(boxes[ixs[join_ixs], 3])])])
+                new_mask = np.sum(np.stack([masks[:, :, i]] + [masks[:, :, j] for j in ixs[join_ixs]], axis = -1), axis = -1)
                 boxes[i] = new_box
                 masks[:, :, i] = new_mask
-                scores[i] = (scores[i] + np.sum(scores[join_ixs]))
+                scores[i] = (scores[i] + np.sum(scores[ixs[join_ixs]]))
                 n_joins[i] = n_joins[i] + len(join_ixs)
                 # Remove indicies of the overlapped boxes.
                 ixs = np.delete(ixs, join_ixs)
@@ -274,5 +274,5 @@ def combine_boxes(boxes, masks, scores, threshold):
                 ixs = np.delete(ixs, 0)
     ixs_pick = np.array(ixs_pick)
 
-    return ixs_pick, boxes[ixs_pick], scores[ixs_pick], (masks[:, :, ixs_pick] > 0).astype(np.int), n_joins[ixs_pick]
+    return ixs_pick, boxes[ixs_pick], scores[ixs_pick] / n_joins[ixs_pick], masks[:, :, ixs_pick], n_joins[ixs_pick]
 
