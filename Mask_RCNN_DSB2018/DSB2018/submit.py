@@ -25,63 +25,85 @@ def base_test_dataset():
     return dataset
 
 
-def maskrcnn_detect_flips(model, images, threshold, voting_threshold = 0.5, use_nms = False):
-    """
-    Rotates images by 4 x 90 degrees and combines results via non-maximum suppression
-    """
+def combine_results(_results, N, iou_threshold, voting_threshold, use_nms):
+
+    results = []
+    for i in range(N):
+
+        img_results = du.concatenate_list_of_dicts([rf[i] for rf in _results])
+        if use_nms:
+            img_results = reduce_via_nms(img_results, threshold)
+        else:
+            img_results = reduce_via_voting(img_results, iou_threshold, voting_threshold, n_votes = len(_results))
+
+        # Reshape masks
+        img_results['masks'] = np.moveaxis(img_results['masks'], 0, -1)
+        img_results['class_ids'] = img_results['class_ids'].reshape(-1, )
+        img_results['scores'] = img_results['scores'].reshape(-1, )
+
+        results.append(img_results)
+
+    return results
+
+
+def apply_flips_rotations(_config, images):
 
     images_flip = [images, 
-                    [np.fliplr(img) for img in images], 
-                    [np.flipud(img) for img in images],
-                    [np.flipud(np.fliplr(img)) for img in images],
-                    [np.fliplr(np.flipud(img)) for img in images]]
+                [np.fliplr(img) for img in images], 
+                [np.flipud(img) for img in images],
+                [np.flipud(np.fliplr(img)) for img in images],
+                [np.rot90(img, 1, (0, 1)) for img in images],
+                [np.rot90(img, 3, (0, 1)) for img in images]]
 
-    results_flip = [model.detect(img, verbose=0) for img in images_flip]
+    output = {'images': images_flip,
+              'mask_scale': [None] * len(images_flip),
+              'fn_reverse': 'reverse_flips_rotations'}
 
-    # Reverse flip masks
+    return output
+
+
+def reverse_flips_rotations(results_flip, images):
+
     for i in range(len(images)):
         results_flip[1][i]['masks'] = np.fliplr(results_flip[1][i]['masks'])
         results_flip[2][i]['masks'] = np.flipud(results_flip[2][i]['masks'])
         results_flip[3][i]['masks'] = np.fliplr(np.flipud(results_flip[3][i]['masks']))
-        results_flip[4][i]['masks'] = np.flipud(np.fliplr(results_flip[4][i]['masks']))
+        results_flip[4][i]['masks'] = np.rot90(results_flip[4][i]['masks'], -1, (0, 1))
+        results_flip[5][i]['masks'] = np.rot90(results_flip[5][i]['masks'], -3, (0, 1))
+
         # Recalculate bboxes
         for j in range(len(results_flip)):
             results_flip[j][i]['rois'] = utils.extract_bboxes(results_flip[j][i]['masks'])
             # Reshape masks so that they can be concatenated correctly
             results_flip[j][i]['masks'] = np.moveaxis(results_flip[j][i]['masks'], -1, 0)
 
-    # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
-    results = []
-    for i in range(len(images)):
-
-        img_results_flip = du.concatenate_list_of_dicts([rf[i] for rf in results_flip])
-        if use_nms:
-            img_results_flip = reduce_via_nms(img_results_flip, threshold)
-        else:
-            img_results_flip = reduce_via_voting(img_results_flip, threshold, voting_threshold, n_votes = len(results_flip))
-
-        # Reshape masks
-        img_results_flip['masks'] = np.moveaxis(img_results_flip['masks'], 0, -1)
-        img_results_flip['class_ids'] = img_results_flip['class_ids'].reshape(-1, )
-        img_results_flip['scores'] = img_results_flip['scores'].reshape(-1, )
-
-        results.append(img_results_flip)
-
-    return results
+    return results_flip
 
 
-def maskrcnn_detect_scale(model, images, threshold, voting_threshold = 0.5, scales = [0.8, 1.2], use_nms = False):
+def apply_scaling(_config, images, scales = [0.8, 0.9, 1]):
     """
-    Rescales images to specified scales and combines results.
-    If use_nms = True, we combine via non-maximum suppression.
-    If use_nms = False, we combine by joining masks with box IOUs above the threshold
-    and then subselecting mask pixels that had more than a specified number of votes.
+    Extract the images that would normally be fed into maskrcnn and rescale from here
+    NB: because of how maskrcnn resizes, images are scaled up to reach 
+    (_config.IMAGE_MIN_DIM, _config.IMAGE_MAX_DIM) as standard.
+    As a result, if we have scales > 1 the images will end up being scaled back down to the 
+    maximum anyway. So we can only generate different scaled inputs by scaling downwards.
+    Hence default scales set to 0.8, 0.9, 1.
     """
 
-    images_scale = [images] + [[scipy.misc.imresize(img, (round(img.shape[0] * scale), round(img.shape[1] * scale))) for img in images] for scale in scales]
+    # Note: output of utils is: image, window, scale, padding
+    model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
+    # Take the image window out of the model image inputs (the rest is padding)
+    model_images_ex_padding = [x[0][x[1][0] : x[1][2], x[1][1] : x[1][3]] for x in model_inputs]
+   
+    # Create output
+    output = {'images': [model_images_ex_padding for scale in scales],
+              'mask_scale': [[scale] * len(images) for scale in scales],
+              'fn_reverse': 'reverse_scaling'}
+    
+    return output
 
 
-    results_scale = [model.detect(img, verbose=0) for img in images_scale]
+def reverse_scaling(results_scale, images):
 
     # Reverse the scales
     for i in range(len(images)):
@@ -94,22 +116,46 @@ def maskrcnn_detect_scale(model, images, threshold, voting_threshold = 0.5, scal
             # Reshape masks so that they can be concatenated correctly
             results_scale[j][i]['masks'] = np.moveaxis(results_scale[j][i]['masks'], -1, 0)
 
-    # Carry out non-maximum suppression to reduce results_scale for each image to a single set of results
-    results = []
-    for i in range(len(images)):
 
-        img_results_scale = du.concatenate_list_of_dicts([rf[i] for rf in results_scale])
-        if use_nms:
-            img_results_scale = reduce_via_nms(img_results_scale, threshold)
-        else:
-            img_results_scale = reduce_via_voting(img_results_scale, threshold, voting_threshold)
+    return results_scale
 
-        # Reshape masks
-        img_results_scale['masks'] = np.moveaxis(img_results_scale['masks'], 0, -1)
-        img_results_scale['class_ids'] = img_results_scale['class_ids'].reshape(-1, )
-        img_results_scale['scores'] = img_results_scale['scores'].reshape(-1, )
 
-        results.append(img_results_scale)
+def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, use_nms = False):
+    """
+    Augments images subject to list_fn_apply and combines results via 
+    non-maximum suppression if use_nms is True, otherwises uses merging + voting
+    """
+
+    # Apply the augmentations requested
+    # NB: augmentations must include the original (unaugmented) image, if requested
+    # fn_apply returns: lists of images and corresponding mask_scale, fn_reverse
+    images_info = [globals()[fn_apply](_config, images) for fn_apply in list_fn_apply]
+
+    results_augment = []
+
+    for img_info in images_info:
+        
+        # Each img_info set corresponds to a set of augmentations.
+        # It has the following information:
+        # 'images': the set of augmented images that we require predictions for (e.g. a set of 6 flips/rotations)
+        # 'mask_scale': the mask_scale that we want to apply when resizing images with resize_image_scaled() (if you want to use normal resizing set mask_scale = None)
+        # 'fn_reverse': the function to call to reverse the augmentations from the predicted masks
+
+        # Detect
+        res = [model.detect(img, verbose=0, mask_scale = mask_scale) for img, mask_scale in zip(img_info['images'], img_info['mask_scale'])]
+
+        # Reverse augmentations
+        res = globals()[img_info['fn_reverse']](res, images)
+
+        # Append
+        for r in res:
+            results_augment.extend(res)
+    
+    # Concatenate lists of results
+    results_augment = du.concatenate_list_of_dicts(results_augment)
+
+    # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
+    results = combine_results(results_augment, len(images), threshold, voting_threshold, use_nms)
 
     return results
 
@@ -249,7 +295,10 @@ def reduce_via_nms(img_results, threshold):
 
 
 def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
-
+    """
+    Merges masks from different sets of results if their bboxes overlap by > threshold.
+    Then takes a pixel-level vote on which pixels should be included in each mask (> voting threshold).
+    """
     results = deepcopy(img_results)
    
     # Combine masks with overlaps greater than threshold
@@ -267,6 +316,8 @@ def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
     masks = masks[valid_masks, :, :]
     scores = scores[valid_masks]
 
+    #from visualize import plot_multiple_images; plot_multiple_images([np.sum(img_results['masks'], axis = 0), np.sum(masks, axis = 0)], nrows = 1, ncols = 2)
+    
     img_results = du.reduce_dict(img_results, idx)
      
     img_results['rois'] = boxes
@@ -424,7 +475,11 @@ def combine_labels(label_list, score_list, border_threshold = 5):
     return final_labels, final_scores
 
 
-def predict_model(_config, dataset, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, img_pad = 0, dilate = False, save_predictions = False, create_submission = True):
+def predict_model(_config, dataset, epoch = None, 
+                  augment_flips = False, augment_scale = False, 
+                  nms_threshold = 0.3, voting_threshold = 0.5,
+                  img_pad = 0, dilate = False, 
+                  save_predictions = False, create_submission = True):
 
     # Create save_dir
     if save_predictions:
@@ -455,10 +510,9 @@ def predict_model(_config, dataset, epoch = None, augment_flips = False, augment
                 images.append(images[-1])
 
         # Run detection
-        if augment_flips:
-            r = maskrcnn_detect_flips(model, images, threshold = nms_threshold)
-        elif augment_scale:
-            r = maskrcnn_detect_scale(model, images, threshold = nms_threshold)
+        list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
+        if len(list_fn_apply) > 0:
+            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold = nms_threshold, voting_threshold = voting_threshold, use_nms = False)
         else:
             r = model.detect(images, verbose=0)
         
@@ -956,7 +1010,10 @@ def main():
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', augment_flips = True, nms_threshold = 0.5, create_submission = True, save_predictions = False)
+        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 
+                           augment_flips = True, augment_scale = True, 
+                           nms_threshold = 0.5, voting_threshold = 0.5,
+                           create_submission = True, save_predictions = False)
 
 if __name__ == '__main__':
     main()
