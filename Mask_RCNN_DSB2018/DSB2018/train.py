@@ -224,11 +224,11 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         dataset_test.prepare()
         return _config, dataset_test
 
-def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_not_balanced(training=True):
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced(training=True):
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                mini_mask_shape = 12,
-                               identifier = 'flips_rots_color_not_balanced',
+                               identifier = 'flips_rots_color_balanced',
                                augmentation_crop = 1.,
                                fn_load = 'load_image_gt_augment',
                                augmentation_dict = {'dim_ordering': 'tf',
@@ -236,9 +236,11 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color
                                                     'vertical_flip': True, 
                                                     'rots':True})
 
+    dataset_kwargs = { 'to_grayscale' : False , 'cache' : DSB2018_Dataset.Cache.NONE }
+
     if training:
         # Training dataset
-        dataset_train = DSB2018_Dataset(to_grayscale = False, cache = DSB2018_Dataset.Cache.NONE)
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
         dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1)
         dataset_train.prepare()
 
@@ -249,14 +251,14 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color
     
         model.train(dataset_train, None,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=20,
+                    epochs=80,
                     layers='all',
                     show_image_each = 100,
-                    balance_by_cluster_id = False)
+                    balance_by_cluster_id = True)
 
     else:
 
-        dataset_test = DSB2018_Dataset(to_grayscale = False)
+        dataset_test = DSB2018_Dataset(**dataset_kwargs)
         dataset_test.add_nuclei(test_dir, 'test', shuffle = False)
         dataset_test.prepare()
         return _config, dataset_test
@@ -431,7 +433,7 @@ def train_resnet101_flips_256_minimask12_double_invert(training = True):
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if getpass.getuser() == 'antor':
-        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_not_balanced()
+        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced()
     else:
         train_resnet101_flips_256_minimask12_double_invert()
 
