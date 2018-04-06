@@ -10,6 +10,8 @@ import random
 from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, base_dir
 import getpass
 
+USER = getpass.getuser()
+
 def load_weights(model, _config, init_with_override = None):
 
     init_with = _config.init_with if init_with_override is None else init_with_override  # imagenet, coco, or last
@@ -224,16 +226,20 @@ def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_mosaics(train
         dataset_test.prepare()
         return _config, dataset_test
 
-def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced(training=True):
+def train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced_safe(training=True):
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                mini_mask_shape = 12,
                                identifier = 'flips_rots_color_balanced',
-                               augmentation_crop = 1.,
+                               augmentation_crop = 0,#0.5,
                                fn_load = 'load_image_gt_augment',
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
                                                     'vertical_flip': True, 
+                                                    'zoom_range': (0.5,0.5),
+                                                    'height_shift_range': 0.6,
+                                                    'width_shift_range': 0,
+                                                    'safe_transform' : True,
                                                     'rots':True})
 
     dataset_kwargs = { 'to_grayscale' : False , 'cache' : DSB2018_Dataset.Cache.NONE }
@@ -369,20 +375,21 @@ def train_resnet101_flips_alldata_minimask12_double_invert_semantic(training = T
     if training:
         # Training dataset
         dataset_train = DSB2018_Dataset(invert_type = 2)
-        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
         dataset_train.prepare()
 
-        # Validation dataset
-        dataset_val = DSB2018_Dataset(invert_type = 2)
-        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
-        dataset_val.prepare()
+        if USER != 'antor':
+            # Validation dataset
+            dataset_val = DSB2018_Dataset(invert_type = 2)
+            dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+            dataset_val.prepare()
 
         # Create model in training mode
         model = modellib.BespokeMaskRCNN(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
-        model.train(dataset_train, dataset_val,
+        model.train(dataset_train, dataset_val if USER != 'antor' else None,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=30,
                     layers='all')
@@ -432,7 +439,7 @@ def train_resnet101_flips_256_minimask12_double_invert(training = True):
 
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
-    if getpass.getuser() == 'antor':
+    if USER == 'antor':
         train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced()
     else:
         train_resnet101_flips_256_minimask12_double_invert()
