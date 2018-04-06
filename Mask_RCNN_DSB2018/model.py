@@ -17,12 +17,13 @@ import itertools
 import json
 import re
 import logging
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import numpy as np
 import scipy.misc
 from scipy import ndimage
 from skimage import exposure
 import multiprocessing
+import copy
 
 # Import keras / tensorflow and set config
 import keras
@@ -2147,7 +2148,8 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
 
 
 def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
-                   batch_size=1, detection_targets=False, show_image_each = 0, include_semantic = False):
+                   batch_size=1, detection_targets=False, show_image_each = 0, 
+                   include_semantic = False, balance_by_cluster_id = False):
     """A generator that returns images and corresponding target class ids,
     bounding box deltas, and masks.
 
@@ -2185,7 +2187,26 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     b = 0  # batch item index
     image_index = -1
     image_ids = np.copy(dataset.image_ids)
+
+    # makes sense to shuffle here (1st epoch) since otherwise in multiprocessing all workers would see feed
+    # in the same order
+    np.random.shuffle(image_ids) 
+
     error_count = 0
+
+    if balance_by_cluster_id:
+        cluster_ids_to_image_id = defaultdict(list)
+        for image_id in dataset.image_ids:
+            cluster_id = dataset.image_info[image_id]['cluster_id']
+            cluster_ids_to_image_id[cluster_id].append(image_id)
+        unique_cluster_ids = tuple(set(cluster_ids_to_image_id.keys()))
+
+        running_lists_of_cluster_ids_to_image_id = copy.deepcopy(cluster_ids_to_image_id)
+
+        print(unique_cluster_ids)
+        for k,v in cluster_ids_to_image_id.items():
+            random.shuffle(running_lists_of_cluster_ids_to_image_id[k])
+            print("Cluster {} has {} items".format(k, len(v)))
 
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
@@ -2199,12 +2220,24 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     while True:
         try:
             # Increment index to pick next image. Shuffle if at the start of an epoch.
-            image_index = (image_index + 1) % len(image_ids)
-            if shuffle and image_index == 0:
-                np.random.shuffle(image_ids)
+            if not balance_by_cluster_id:
+                image_index = (image_index + 1) % len(image_ids)
+            
+                if shuffle and image_index == 0:
+                    np.random.shuffle(image_ids)
 
-            # Get GT bounding boxes and masks for image.
-            image_id = image_ids[image_index]
+                # Get GT bounding boxes and masks for image.
+                image_id = image_ids[image_index]
+            
+            else:
+                random_cluster_id = random.choice(unique_cluster_ids)
+
+                if len(running_lists_of_cluster_ids_to_image_id[random_cluster_id]) == 0:
+                    running_lists_of_cluster_ids_to_image_id[random_cluster_id] = copy.copy(cluster_ids_to_image_id[random_cluster_id])
+                    random.shuffle(running_lists_of_cluster_ids_to_image_id[random_cluster_id])
+                
+                image_id = running_lists_of_cluster_ids_to_image_id[random_cluster_id].pop()
+
             if include_semantic:
                 image, image_meta, gt_class_ids, gt_boxes, gt_masks, gt_semantic = \
                     globals()[config.fn_load](dataset, config, image_id, augment=augment,
@@ -2836,7 +2869,8 @@ class MaskRCNN():
         self.checkpoint_path = self.checkpoint_path.replace(
             "*epoch*", "{epoch:04d}")
 
-    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, augment_val = False, show_image_each = 0):
+    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, 
+        augment_val = False, show_image_each = 0, balance_by_cluster_id = False):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -2877,7 +2911,7 @@ class MaskRCNN():
         # Data generators
         train_generator = data_generator(train_dataset, self.config, shuffle=True,
                                          batch_size=self.config.BATCH_SIZE, augment = augment_train, 
-                                         show_image_each = show_image_each)
+                                         show_image_each = show_image_each, balance_by_cluster_id = balance_by_cluster_id)
         if val_dataset is not None:
             val_generator = data_generator(val_dataset, self.config, shuffle=True,
                                        batch_size=self.config.BATCH_SIZE,
