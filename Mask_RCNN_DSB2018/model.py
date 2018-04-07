@@ -1024,9 +1024,10 @@ def dilated_layer(self, num_convolutions, preceeding_layer, dilation_rates = [1,
 
     dilated_layer = [preceeding_layer]
     for dilation_rate in dilation_rates:
-        dilated_layer.append(KL.Conv2D(num_convolutions, (self.filter_size, self.filter_size), padding = padding, kernel_initializer = init_method, dilation_rate = dilation_rate)(dilated_layer[-1]))
+        dilated_layer.append(KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method, dilation_rate = dilation_rate)(dilated_layer[-1]))
         
     return KL.add(dilated_layer[1:])
+
 
 ############################################################
 #  Loss Functions
