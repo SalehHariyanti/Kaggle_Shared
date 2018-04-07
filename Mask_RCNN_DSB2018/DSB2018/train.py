@@ -81,6 +81,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert(training = True):
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
                                                     'vertical_flip': True})
+    model_name = 'MaskRCNN'
 
     if training:
         # Training dataset
@@ -94,7 +95,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert(training = True):
         dataset_val.prepare()
 
         # Create model in training mode
-        model = modellib.MaskRCNN(mode="training", config=_config,
+        model = getattr(modellib, model_name)(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
@@ -106,7 +107,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert(training = True):
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
-        return _config, dataset
+        return _config, dataset, model_name
 
 
 def train_resnet101_flips_alldata_minimask12_double_invert_masksizes(training = True):

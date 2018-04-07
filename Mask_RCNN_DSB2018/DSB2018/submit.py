@@ -11,6 +11,7 @@ import dsb2018_utils as du
 import scipy
 import cv2
 from copy import deepcopy
+from tqdm import tqdm
 
 import visualize
 import matplotlib.pyplot as plt
@@ -498,7 +499,7 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
     
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    for i in range(0, len(dataset.image_ids), _config.BATCH_SIZE):
+    for i in tqdm(range(0, len(dataset.image_ids), _config.BATCH_SIZE)):
          # Load image
         images = []
         N = 0
@@ -961,15 +962,12 @@ def main():
         predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic, 'predict_model')
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        """
         predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 
                            augment_flips = True, augment_scale = True, 
                            nms_threshold = 0.5, voting_threshold = 0.5,
-                           augment_param_dict = {'scales': [0.8, 0.9, 1]},
+                           augment_param_dict = {'scales': [0.6, 0.7, 0.8, 0.9]},
                            create_submission = True, save_predictions = False)
-        """
-        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model', 
-                           create_submission = False, save_predictions = False)
+
 
 if __name__ == '__main__':
     main()
