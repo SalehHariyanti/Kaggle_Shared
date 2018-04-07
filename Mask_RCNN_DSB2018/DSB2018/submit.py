@@ -436,11 +436,12 @@ def combine_semantic(boxes, scores, masks, semantic_masks):
     # Determine which residual pixels overlap with box labels
     box_overlap = np.multiply(box_labels, residual_semantic)
 
-    # For each unique case in box_overlap, assign the residual_semantic pixel to the mask
+    # For each unique case in box_overlap, dilate the mask and then assign the dilated pixels if they overlap with residual_semantic 
     boxes_with_overlap = np.unique(box_overlap[box_overlap > 0])
     for b in boxes_with_overlap:
         # NB: boxes_with_overlap are indexed + 1 relative to masks (to account for background of zero)
-        masks[:, :, b - 1] = ((masks[:, :, b - 1] + (box_overlap == b).astype(np.int)) > 0).astype(np.int)
+        dilated_mask = cv2.dilate(masks[:, :, b - 1].astype(np.uint8), kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype = np.uint8))
+        masks[:, :, b - 1] = ((masks[:, :, b - 1] + np.multiply(dilated_mask, (box_overlap == b))) > 0).astype(np.int)
 
     # from visualize import plot_multiple_images; plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
     # plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
@@ -1098,7 +1099,7 @@ def main():
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                            augment_flips = True, augment_scale = True,
                            nms_threshold = 0.5, voting_threshold = 0.5,
-                           augment_param_dict = {'scales': [0.8, 0.85, 0.9, 0.95]},
+                           augment_param_dict = {'scales': [0.85, 0.9, 0.95]},
                            use_semantic = True, epoch = 25)
 
 
