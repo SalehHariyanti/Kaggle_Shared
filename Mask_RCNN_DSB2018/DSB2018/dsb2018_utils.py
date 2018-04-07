@@ -196,6 +196,24 @@ def maskrcnn_labels_to_mask(labels):
     return mask
 
 
+def maskrcnn_boxes_to_labels(boxes, scores, mask_shape):
+    """
+    Creates a mask of boxes labels, with preference given to the highest scores
+    in the case of overlaps
+    """
+    
+    box_labels = np.zeros(mask_shape, dtype = np.int)
+
+    # Sort by scores (highest first)
+    ixs = scores.argsort()[::-1]
+
+    int_boxes = boxes.astype(np.int)
+    for i in ixs:
+        box_labels[int_boxes[i, 0] : int_boxes[i, 2], int_boxes[i, 1] : int_boxes[i, 3]] = i + 1
+
+    return box_labels
+
+
 def run_length_decode(rel, H, W, fill_value = 255, index_offset = 0):
     mask = np.zeros((H * W), np.uint8)
     if rel != '':
@@ -219,7 +237,7 @@ def labels_from_rles(mask_rles, mask_shape):
     return labels, masks
 
 
-def combine_boxes(boxes, scores, masks, threshold):
+def combine_boxes(boxes, scores, masks, threshold, semantic_masks = None):
     """
     Combines boxes if their IOU is above threshold.
     boxes: [N, (y1, x1, y2, x2)]. Notice that (y2, x2) lays outside the box.
@@ -263,6 +281,11 @@ def combine_boxes(boxes, scores, masks, threshold):
                                     min([boxes[i, 2], np.min(boxes[ixs[join_ixs], 2])]),
                                     max([boxes[i, 3], np.max(boxes[ixs[join_ixs], 3])])])
                 new_mask = np.sum(np.stack([masks[:, :, i]] + [masks[:, :, j] for j in ixs[join_ixs]], axis = -1), axis = -1)
+
+                if semantic_masks is not None:
+                    new_semantic_mask = np.sum(np.stack([semantic_masks[:, :, i]] + [semantic_masks[:, :, j] for j in ixs[join_ixs]], axis = -1), axis = -1)
+                    semantic_masks[:, :, i] = new_semantic_mask
+
                 boxes[i] = new_box
                 masks[:, :, i] = new_mask
                 scores[i] = (scores[i] + np.sum(scores[ixs[join_ixs]]))
@@ -274,5 +297,8 @@ def combine_boxes(boxes, scores, masks, threshold):
                 ixs = np.delete(ixs, 0)
     ixs_pick = np.array(ixs_pick)
 
-    return ixs_pick, boxes[ixs_pick], scores[ixs_pick] / n_joins[ixs_pick], masks[:, :, ixs_pick], n_joins[ixs_pick]
+    if semantic_masks is not None:
+        return ixs_pick, boxes[ixs_pick], scores[ixs_pick] / n_joins[ixs_pick], masks[:, :, ixs_pick], n_joins[ixs_pick], semantic_masks[:, :, ixs_pick]
+    else:
+        return ixs_pick, boxes[ixs_pick], scores[ixs_pick] / n_joins[ixs_pick], masks[:, :, ixs_pick], n_joins[ixs_pick]
 

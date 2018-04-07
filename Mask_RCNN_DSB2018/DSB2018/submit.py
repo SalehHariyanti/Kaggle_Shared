@@ -26,7 +26,7 @@ def base_test_dataset():
     return dataset
 
 
-def combine_results(_results, N, iou_threshold, voting_threshold, use_nms):
+def combine_results(_results, N, iou_threshold, voting_threshold, use_nms, use_semantic):
 
     results = []
     for i in range(N):
@@ -35,7 +35,7 @@ def combine_results(_results, N, iou_threshold, voting_threshold, use_nms):
         if use_nms:
             img_results = reduce_via_nms(img_results, threshold)
         else:
-            img_results = reduce_via_voting(img_results, iou_threshold, voting_threshold, n_votes = len(_results))
+            img_results = reduce_via_voting(img_results, iou_threshold, voting_threshold, use_semantic, n_votes = len(_results))
 
         # Reshape masks
         img_results['masks'] = np.moveaxis(img_results['masks'], 0, -1)
@@ -65,18 +65,31 @@ def apply_flips_rotations(_config, images, param_dict):
 
 def reverse_flips_rotations(results_flip, images):
 
+    use_semantic = True if 'semantic_masks' in results_flip[1][0].keys() else False
+
     for i in range(len(images)):
+
         results_flip[1][i]['masks'] = np.fliplr(results_flip[1][i]['masks'])
         results_flip[2][i]['masks'] = np.flipud(results_flip[2][i]['masks'])
         results_flip[3][i]['masks'] = np.fliplr(np.flipud(results_flip[3][i]['masks']))
         results_flip[4][i]['masks'] = np.rot90(results_flip[4][i]['masks'], -1, (0, 1))
         results_flip[5][i]['masks'] = np.rot90(results_flip[5][i]['masks'], -3, (0, 1))
 
+        if use_semantic:
+
+            results_flip[1][i]['semantic_masks'] = np.fliplr(results_flip[1][i]['semantic_masks'])
+            results_flip[2][i]['semantic_masks'] = np.flipud(results_flip[2][i]['semantic_masks'])
+            results_flip[3][i]['semantic_masks'] = np.fliplr(np.flipud(results_flip[3][i]['semantic_masks']))
+            results_flip[4][i]['semantic_masks'] = np.rot90(results_flip[4][i]['semantic_masks'], -1, (0, 1))
+            results_flip[5][i]['semantic_masks'] = np.rot90(results_flip[5][i]['semantic_masks'], -3, (0, 1))
+
         # Recalculate bboxes
         for j in range(len(results_flip)):
             results_flip[j][i]['rois'] = utils.extract_bboxes(results_flip[j][i]['masks'])
             # Reshape masks so that they can be concatenated correctly
             results_flip[j][i]['masks'] = np.moveaxis(results_flip[j][i]['masks'], -1, 0)
+            if use_semantic:
+                results_flip[j][i]['semantic_masks'] = np.moveaxis(results_flip[j][i]['semantic_masks'], -1, 0)
 
     return results_flip
 
@@ -112,6 +125,7 @@ def reverse_scaling(results_scale, images):
     # Reverse the scales
     for i in range(len(images)):
         for j in range(len(results_scale)):
+
             results_scale[j][i]['masks'] = scipy.ndimage.zoom(results_scale[j][i]['masks'], 
                                                               (images[i].shape[0] / results_scale[j][i]['masks'].shape[0], 
                                                                images[i].shape[1] / results_scale[j][i]['masks'].shape[1], 
@@ -120,11 +134,51 @@ def reverse_scaling(results_scale, images):
             # Reshape masks so that they can be concatenated correctly
             results_scale[j][i]['masks'] = np.moveaxis(results_scale[j][i]['masks'], -1, 0)
 
+            if 'semantic_masks' in results_scale[j][i].keys():
+                results_scale[j][i]['semantic_masks'] = scipy.ndimage.zoom(results_scale[j][i]['semantic_masks'], 
+                                                                  (images[i].shape[0] / results_scale[j][i]['semantic_masks'].shape[0], 
+                                                                   images[i].shape[1] / results_scale[j][i]['semantic_masks'].shape[1], 
+                                                                   1), order = 0)
+                # Reshape masks so that they can be concatenated correctly
+                results_scale[j][i]['semantic_masks'] = np.moveaxis(results_scale[j][i]['semantic_masks'], -1, 0)
+
 
     return results_scale
 
 
-def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, augment_param_dict = {}, use_nms = False):
+def apply_clahe(_config, images, augment_param_dict):
+    """
+    Apply CLAHE colour transform to images
+    """
+
+    assert 'clahe' in augment_param_dict.keys()
+    clip, grid = augment_param_dict['clahe']
+
+    c = cv2.createCLAHE(clipLimit = clip, tileGridSize = (grid, grid)) 
+
+    clahe_images = []
+
+    for img in images:
+        lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab)
+        l_channel = c.apply(l_channel)
+        lab   = cv2.merge((l_channel, a_channel, b_channel))
+        clahe_images.append(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+   
+    # Create output
+    output = {'images': clahe_images,
+              'mask_scale': [None] * len(clahe_images),
+              'fn_reverse': 'reverse_clahe'}
+    
+    return output
+
+
+def reverse_clahe(results, images):
+
+    return results
+
+
+def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, augment_param_dict = {}, use_nms = False, use_semantic = False):
     """
     Augments images subject to list_fn_apply and combines results via 
     non-maximum suppression if use_nms is True, otherwises uses merging + voting
@@ -146,7 +200,13 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
         # 'fn_reverse': the function to call to reverse the augmentations from the predicted masks
 
         # Detect
-        res = [model.detect(img, verbose=0, mask_scale = mask_scale) for img, mask_scale in zip(img_info['images'], img_info['mask_scale'])]
+        if use_semantic:
+            # In this instance we need to detect with expand_semantic = True, 
+            # as because we are combining results over multiple augmentations 
+            # it is easier to have one semantic instance for each mask instance
+            res = [model.detect(img, verbose=0, mask_scale = mask_scale, expand_semantic = True) for img, mask_scale in zip(img_info['images'], img_info['mask_scale'])]
+        else:
+            res = [model.detect(img, verbose=0, mask_scale = mask_scale) for img, mask_scale in zip(img_info['images'], img_info['mask_scale'])]
 
         # Reverse augmentations
         res = globals()[img_info['fn_reverse']](res, images)
@@ -159,7 +219,18 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
     results_augment = du.concatenate_list_of_dicts(results_augment)
 
     # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
-    results = combine_results(results_augment, len(images), threshold, voting_threshold, use_nms)
+    results = combine_results(results_augment, len(images), threshold, voting_threshold, use_nms, use_semantic)
+
+    return results
+
+
+def maskrcnn_detect(_config, model, images, use_semantic):
+
+    results = model.detect(images, verbose=0)
+
+    if use_semantic:
+        for r in results:
+            r['masks'] = combine_semantic(r['rois'], r['scores'], r['masks'], r['semantic_masks'])
 
     return results
 
@@ -298,7 +369,7 @@ def reduce_via_nms(img_results, threshold):
     return du.reduce_dict(img_results, nms_idx)
 
 
-def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
+def reduce_via_voting(img_results, threshold, voting_threshold, use_semantic, n_votes):
     """
     Merges masks from different sets of results if their bboxes overlap by > threshold.
     Then takes a pixel-level vote on which pixels should be included in each mask (> voting threshold).
@@ -306,29 +377,74 @@ def reduce_via_voting(img_results, threshold, voting_threshold, n_votes):
     results = deepcopy(img_results)
    
     # Combine masks with overlaps greater than threshold
-    idx, boxes, scores, masks, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
+    if use_semantic:
+        idx, boxes, scores, masks, n_joins, semantic_masks = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold, np.moveaxis(results['semantic_masks'], 0, -1))
+    else:
+        idx, boxes, scores, masks, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
 
     # Select masks based on voting threshold
-    masks = np.moveaxis(masks, -1, 0)
     avg_masks = masks / n_votes
     masks = (np.multiply(masks, avg_masks > voting_threshold) > 0).astype(np.int)
-    valid_masks = np.sum(masks, axis = (1, 2)) > 0
+    valid_masks = np.sum(masks, axis = (0, 1)) > 0
 
     # Reduce to masks that are still valid
     idx = idx[valid_masks]
     boxes = boxes[valid_masks]
-    masks = masks[valid_masks, :, :]
+    masks = masks[:, :, valid_masks]
     scores = scores[valid_masks]
+
+    if use_semantic:
+        # Reduce semantic masks according to valid_masks and voting_threshold
+        avg_semantic_masks = semantic_masks / n_votes
+        semantic_masks = (avg_semantic_masks[:, :, valid_masks] > voting_threshold).astype(np.int)
+        # Reduce to single semantic mask
+        semantic_masks = (np.sum(semantic_masks, axis = -1) > 0).astype(np.int)
+
+        masks = combine_semantic(boxes, scores, masks, semantic_masks)
 
     #from visualize import plot_multiple_images; plot_multiple_images([np.sum(img_results['masks'], axis = 0), np.sum(masks, axis = 0)], nrows = 1, ncols = 2)
     
+    # Assign results to img_results:
+
+    # Reduce dict to the relevant index to capture the relevant fields for anything
+    # you haven't changed
     img_results = du.reduce_dict(img_results, idx)
      
+    # Assign newly calculated fields
     img_results['rois'] = boxes
-    img_results['masks'] = masks
+    img_results['masks'] = np.moveaxis(masks, -1, 0)
     img_results['scores'] = scores
+    if use_semantic:
+        img_results['semantic_masks'] = semantic_masks
 
     return img_results
+
+
+def combine_semantic(boxes, scores, masks, semantic_masks):
+    """
+    For each semantic_mask pixel that falls within the box of a mask
+    we assign that pixel to the mask with the highest score.
+    """
+
+    # Make a mask of box labels
+    box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, semantic_masks.shape)
+
+    # Determine which pixels feature in semantic_masks but not masks
+    masks_to_semantic = (np.sum(masks, axis = -1) > 0).astype(np.int)
+    residual_semantic = np.logical_and(masks_to_semantic == 0, semantic_masks == 1).astype(np.int)
+
+    # Determine which residual pixels overlap with box labels
+    box_overlap = np.multiply(box_labels, residual_semantic)
+
+    # For each unique case in box_overlap, assign the residual_semantic pixel to the mask
+    boxes_with_overlap = np.unique(box_overlap[box_overlap > 0])
+    for b in boxes_with_overlap:
+        # NB: boxes_with_overlap are indexed + 1 relative to masks (to account for background of zero)
+        masks[:, :, b - 1] = ((masks[:, :, b - 1] + (box_overlap == b).astype(np.int)) > 0).astype(np.int)
+
+    # from visualize import plot_multiple_images; plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
+    # plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
+    return masks
 
 
 def tile_image(img, grid):
@@ -483,6 +599,7 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                   augment_flips = False, augment_scale = False, 
                   augment_param_dict = {},
                   nms_threshold = 0.3, voting_threshold = 0.5,
+                  use_semantic = False,
                   img_pad = 0, dilate = False, 
                   save_predictions = False, create_submission = True):
 
@@ -517,10 +634,13 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
         # Run detection
         list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
         if len(list_fn_apply) > 0:
-            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold = nms_threshold, voting_threshold = voting_threshold, augment_param_dict = augment_param_dict, use_nms = False)
+            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, 
+                                              threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                              augment_param_dict = augment_param_dict, 
+                                              use_nms = False, use_semantic = use_semantic)
         else:
-            r = model.detect(images, verbose=0)
-        
+            r = maskrcnn_detect(_config, model, images, use_semantic) 
+
         # Reduce to N images
         for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
 
@@ -529,6 +649,9 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                 masks = r[j]['masks'] #[H, W, N] instance binary masks
 
                 if img_pad > 0:
+
+                    if use_semantic:
+                        r[j]['semantic_masks'] = r[j]['semantic_masks'][img_pad : -img_pad, img_pad : -img_pad]
 
                     masks = masks[img_pad : -img_pad, img_pad : -img_pad]
                     valid = np.sum(masks, axis = (0, 1)) > 0
@@ -540,7 +663,10 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                     r[j]['rois'] = r[j]['rois'][valid]
    
                 if dilate:
-                    masks = np.stack([cv2.dilate(mask.astype(np.uint8), kernel = np.ones((3, 3), dtype = np.uint8)) for mask in np.moveaxis(masks, -1, 0)], axis = -1)
+                    masks = np.stack([cv2.dilate(mask.astype(np.uint8), 
+                                                 kernel = np.array([[0, 1, 0],
+                                                                    [1, 1, 1], 
+                                                                    [0, 1, 0]], dtype = np.uint8)) for mask in np.moveaxis(masks, -1, 0)], axis = -1)
 
                 img_name = dataset.image_info[idx]['name']
         
@@ -962,11 +1088,18 @@ def main():
         predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic, 'predict_model')
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
+        """
         predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 
                            augment_flips = True, augment_scale = True, 
                            nms_threshold = 0.5, voting_threshold = 0.5,
-                           augment_param_dict = {'scales': [0.6, 0.7, 0.8, 0.9]},
+                           augment_param_dict = {'scales': [0.8, 0.9, 1]},# change to 0.8, 0.85, 0.9, 0.95?
                            create_submission = True, save_predictions = False)
+        """
+        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
+                           augment_flips = True, augment_scale = True,
+                           nms_threshold = 0.5, voting_threshold = 0.5,
+                           augment_param_dict = {'scales': [0.8, 0.85, 0.9, 0.95]},
+                           use_semantic = True, epoch = 25)
 
 
 if __name__ == '__main__':

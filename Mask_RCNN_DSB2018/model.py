@@ -22,6 +22,7 @@ import numpy as np
 import scipy.misc
 from scipy import ndimage
 from skimage import exposure
+from imgaug import augmenters as iaa
 import multiprocessing
 import copy
 
@@ -3453,7 +3454,7 @@ class BespokeMaskRCNN(MaskRCNN):
             self.keras_model.metrics_tensors.append(tf.reduce_mean(
                 layer.output, keep_dims=True))
 
-    def detect(self, images, verbose=0, mask_scale = None):
+    def detect(self, images, verbose=0, mask_scale = None, expand_semantic = False):
         """Runs the detection pipeline.
 
         images: List of images, potentially of different sizes.
@@ -3492,7 +3493,7 @@ class BespokeMaskRCNN(MaskRCNN):
                 "class_ids": final_class_ids,
                 "scores": final_scores,
                 "masks": final_masks,
-                "semantic_masks": final_semantic_masks
+                "semantic_masks": np.stack([final_semantic_masks] * final_masks.shape[-1], axis = -1) if expand_semantic else final_semantic_masks
             })
         return results
 
@@ -3809,6 +3810,8 @@ class XY_ImageDataGenerator(object):
                  rescale=None,
                  hsv_augmentation=False,
                  random_crop_shape = False,
+                 x_gaussian_blur = None,
+                 x_noise = 0.,
                  y_gaussian_blur = None,
                  dim_ordering='default'):
         if dim_ordering == 'default':
@@ -3819,6 +3822,8 @@ class XY_ImageDataGenerator(object):
         self.principal_components = None
         self.rescale = rescale
         self.random_crop_shape = random_crop_shape
+        self.x_noise = x_noise
+        self.x_gaussian_blur = x_gaussian_blur
         self.y_gaussian_blur = y_gaussian_blur
         self.contrast_stretching = contrast_stretching
         self.adaptive_equalization = adaptive_equalization
@@ -4030,6 +4035,16 @@ class XY_ImageDataGenerator(object):
         if self.histogram_equalization: 
             if np.random.random() < 0.5: 
                 x = exposure.equalize_hist(x) 
+
+        if self.x_noise > 0:
+            # add gaussian noise to x
+            sigma = np.random.uniform(0.0, self.x_noise)
+            x = iaa.AdditiveGaussianNoise(sigma * (255 if np.max(x) > 1 else 1)).augment_images(x) 
+
+        if self.x_gaussian_blur is not None:
+            if np.random.random() < 0.5:
+                sigma = np.random.uniform(self.x_gaussian_blur[0], self.x_gaussian_blur[1])
+                x = ndimage.filters.gaussian_filter(x, sigma = sigma)
 
         if y is not None and self.y_gaussian_blur is not None:
             if np.random.random() < 0.5:

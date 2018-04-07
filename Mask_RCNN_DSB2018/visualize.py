@@ -529,12 +529,12 @@ def image_with_labels(img, label, edge_colour = 255):
     return img_color
 
 
-def plot_multiple_images(img_list, title_list = None, nrows = 3, ncols = 6, greyscale = False):
+def plot_multiple_images(img_list, title_list = None, nrows = None, ncols = None, greyscale = False):
 
     title_list = ['' for i in img_list] if title_list is None else title_list
     
-    nrows = int(np.ceil(len(img_list) / ncols)) if nrows is None else nrows
-    ncols = int(np.ceil(len(img_list) / nrows)) if ncols is None else ncols
+    nrows = 1 if nrows is None else nrows
+    ncols = len(img_list) if ncols is None else ncols
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(12, 6),
                              subplot_kw={'xticks': [], 'yticks': []})
