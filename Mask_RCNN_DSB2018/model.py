@@ -1020,6 +1020,14 @@ def up_layer(num_convolutions, preceeding_layer, opposite_layer = None, dropout_
     return up_layers
 
 
+def dilated_layer(self, num_convolutions, preceeding_layer, dilation_rates = [1, 2, 4, 8, 16, 32], filter_size = 3, padding = 'same', init_method = 'glorot_uniform'):
+
+    dilated_layer = [preceeding_layer]
+    for dilation_rate in dilation_rates:
+        dilated_layer.append(KL.Conv2D(num_convolutions, (self.filter_size, self.filter_size), padding = padding, kernel_initializer = init_method, dilation_rate = dilation_rate)(dilated_layer[-1]))
+        
+    return KL.add(dilated_layer[1:])
+
 ############################################################
 #  Loss Functions
 ############################################################

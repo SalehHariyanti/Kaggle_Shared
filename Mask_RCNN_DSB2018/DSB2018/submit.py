@@ -1104,16 +1104,16 @@ def main():
                            nms_threshold = 0.5, voting_threshold = 0.5,
                            param_dict = {'scales': [0.85, 0.9, 0.95],
                                          'n_dilate': 1,
-                                         'n_erode': 0},
+                                         'n_erode': 1},
                            use_semantic = True, epoch = 25)
 
-        """
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                           augment_flips = True, augment_scale = True,
-                           nms_threshold = 0.5, voting_threshold = 0.5,
-                           param_dict = {'scales': [0.85, 0.9, 0.95]},
-                           use_semantic = False, epoch = 25)
-        """
+                    augment_flips = True, augment_scale = True,
+                    nms_threshold = 0.5, voting_threshold = 0.5,
+                    param_dict = {'scales': [0.85, 0.9, 0.95],
+                                    'n_dilate': 2,
+                                    'n_erode': 2},
+                    use_semantic = True, epoch = 25)
 
 if __name__ == '__main__':
     main()
