@@ -4,8 +4,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import cv2
 import csv
+import sys
+sys.path.append('../')
 from visualize import *
 from dsb2018_utils import * 
+
+import getpass
+USER = getpass.getuser()
 
 base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
@@ -116,11 +121,21 @@ def masks_for_test_mosaics(submission_dir):
 
 
 def main():
-    # Overwrite filenames with the submissions you wish to compare
-    compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_2_0.3_20180407100327_.csv'),
-                         os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv')])
-    #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
-    #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')
+
+    if USER == 'antor':
+        subs = [
+            'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406203610_.csv', 
+            'submission_DSB2018_512_512_True_12_28_256_0.3_gment_flips_rots_color_balanced_dim_o-tf-horiz-True-rots-True-verti-True_0_80_20180407075023_.csv',
+        ]
+        compare_submissions([os.path.join(submissions_dir,sub) for sub in subs])
+    else:
+
+        # Overwrite filenames with the submissions you wish to compare
+        compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406203610_.csv'),
+                             os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406134755_.csv'),
+                             os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv')])
+        #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
+        #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')
 
 if __name__ == '__main__':
     main()

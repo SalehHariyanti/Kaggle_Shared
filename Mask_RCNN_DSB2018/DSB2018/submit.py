@@ -361,19 +361,22 @@ def create_tile_template(img_shape, grid_shape):
     return grid, x, y, per_col, per_row, pad_col, pad_row
 
 
-def create_model(_config, epoch = None):
+def create_model(_config, model_name, epoch = None):
     # Recreate the model in inference mode
-    model = modellib.MaskRCNN(mode="inference", 
+    model = getattr(modellib, model_name)(mode="inference", 
                                 config=_config,
                                 model_dir=_config.MODEL_DIR)
 
     # Get path to saved weights
     # Either set a specific path or find last trained weights
     # model_path = os.path.join(ROOT_DIR, ".h5 file name here")
+
+    print(model)
+    dir_preffix = model_name if model_name != 'MaskRCNN' else ''
     if epoch is not None:
-        model_path = model.find_last()[1][:-7] + '00' + str(epoch) + '.h5'
+        model_path = model.find_last(dir_preffix)[1][:-7] + '00' + str(epoch) + '.h5'
     else:
-        model_path = model.find_last()[1]
+        model_path = model.find_last(dir_preffix)[1]
 
     # Load trained weights (fill in path to trained weights here)
     assert model_path != "", "Provide path to trained weights"
@@ -478,7 +481,7 @@ def combine_labels(label_list, score_list, border_threshold = 5):
     return final_labels, final_scores
 
 
-def predict_model(_config, dataset, epoch = None, 
+def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None, 
                   augment_flips = False, augment_scale = False, 
                   augment_param_dict = {},
                   nms_threshold = 0.3, voting_threshold = 0.5,
@@ -491,7 +494,7 @@ def predict_model(_config, dataset, epoch = None,
         os.makedirs(save_dir)
 
     # Recreate the model in inference mode
-    model = create_model(_config, epoch)
+    model = create_model(_config, model_name, epoch)
       
     ImageId = []
     EncodedPixels = []
@@ -998,8 +1001,8 @@ def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info
 
 
 def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
-    _config, dataset = fn_experiment(training=False)
-    submission_filename = globals()[fn_predict](_config, dataset, **kwargs)
+    _config, dataset, model_name = fn_experiment(training=False)
+    submission_filename = globals()[fn_predict](_config, dataset, model_name, **kwargs)
 
     if submission_filename is not None:
         epoch = 'last' if 'epoch' not in kwargs else kwargs['epoch']
@@ -1013,7 +1016,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 def main():
     if getpass.getuser() == 'antor':
-        predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced, 'predict_model', epoch=20)
+        predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic, 'predict_model')
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
         """

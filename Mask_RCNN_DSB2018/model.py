@@ -47,6 +47,8 @@ assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 if os.name != 'nt':
     # TODO: ADD TRY/EXCEPT
     from iterm import show_image
+    #import memory_saving_gradients
+    #K.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 else:
     show_image = None
 
@@ -2607,7 +2609,7 @@ class MaskRCNN():
 
         return model
 
-    def find_last(self):
+    def find_last(self, dir_preffix=''):
         """Finds the last checkpoint file of the last trained model in the
         model directory.
         Returns:
@@ -2616,7 +2618,9 @@ class MaskRCNN():
         """
         # Get directory names. Each directory corresponds to a model
         dir_names = next(os.walk(self.model_dir))[1]
-        key = self.config.NAME.lower()
+        key = dir_preffix + self.config.NAME.lower()
+        print(dir_names, key)
+
         dir_names = filter(lambda f: f.startswith(key), dir_names)
         dir_names = sorted(dir_names)
         if not dir_names:
@@ -3806,6 +3810,7 @@ class XY_ImageDataGenerator(object):
                  horizontal_flip=False,
                  vertical_flip=False,
                  rots=False,
+                 safe_transform = False,
                  rescale=None,
                  hsv_augmentation=False,
                  random_crop_shape = False,
@@ -3907,23 +3912,57 @@ class XY_ImageDataGenerator(object):
         if y is not None:
             y, original_y_shape, reshape_required = self.reshape_y(y, x.shape, img_row_index, img_col_index, img_channel_index)
 
+        # TODO: MAKE FLAG FOR SAFE/TRANSFORMS
+
+        h, w     = x.shape[img_row_index], x.shape[img_col_index]
+        center = np.array([w /2, h /2])
+        edges  = np.array([[0,0], [w-1, 0], [w-1,h-1], [0, h-1]])
+
+        edges_outside_image = True
+        attempts_left = 100
+
+        while edges_outside_image and attempts_left > 0:
+            if self.height_shift_range:
+                tx = np.random.uniform(-self.height_shift_range, self.height_shift_range) * x.shape[img_row_index]
+            else:
+                tx = 0
+
+            if self.width_shift_range:
+                ty = np.random.uniform(-self.width_shift_range, self.width_shift_range) * x.shape[img_col_index]
+            else:
+                ty = 0
+
+            if self.zoom_range[0] == 1 and self.zoom_range[1] == 1:
+                zx, zy = 1, 1
+            else:
+                zx, zy = np.random.uniform(self.zoom_range[0], self.zoom_range[1], 2)
+
+            zoom_matrix = np.array([[zx, 0, 0],
+                                    [0, zy, 0],
+                                    [0, 0, 1]])
+
+            transformed_edges = edges - center - np.array([tx,ty])
+            transformed_edges = np.dot(transformed_edges, zoom_matrix[:2,:2])
+            transformed_edges += center
+
+            if self.safe_transform:                
+                edges_outside_image = np.any(transformed_edges < 0) or np.any(transformed_edges[:,0] > w - 1) or np.any(transformed_edges[:,1] > h - 1)
+                attempts_left -= 1
+            else:
+                edges_outside_image = False
+                
+        if self.safe_transform:                
+            print(zx, zy, tx, ty, edges, transformed_edges, attempts_left)
+
         # use composition of homographies to generate final transform that needs to be applied
         if self.rotation_range:
             theta = np.pi / 180 * np.random.uniform(-self.rotation_range, self.rotation_range)
         else:
             theta = 0
+
         rotation_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],
                                     [np.sin(theta), np.cos(theta), 0],
                                     [0, 0, 1]])
-        if self.height_shift_range:
-            tx = np.random.uniform(-self.height_shift_range, self.height_shift_range) * x.shape[img_row_index]
-        else:
-            tx = 0
-
-        if self.width_shift_range:
-            ty = np.random.uniform(-self.width_shift_range, self.width_shift_range) * x.shape[img_col_index]
-        else:
-            ty = 0
 
         translation_matrix = np.array([[1, 0, tx],
                                         [0, 1, ty],
@@ -3936,24 +3975,27 @@ class XY_ImageDataGenerator(object):
                                     [0, np.cos(shear), 0],
                                     [0, 0, 1]])
 
-        if self.zoom_range[0] == 1 and self.zoom_range[1] == 1:
-            zx, zy = 1, 1
-        else:
-            zx, zy = np.random.uniform(self.zoom_range[0], self.zoom_range[1], 2)
+
         zoom_matrix = np.array([[zx, 0, 0],
                                 [0, zy, 0],
                                 [0, 0, 1]])
 
-        transform_matrix = np.dot(np.dot(np.dot(rotation_matrix, translation_matrix), shear_matrix), zoom_matrix)
+        if not edges_outside_image:
 
-        h, w = x.shape[img_row_index], x.shape[img_col_index]
-        transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
-        x = apply_transform(x, transform_matrix, img_channel_index,
-                            fill_mode=self.fill_mode, cval = 0)
-        
-        if y is not None:
-            y = [apply_transform(_y, transform_matrix, img_channel_index,
-                                    fill_mode=self.fill_mode, cval = 0) for _y in y]
+            transform_matrix = np.dot(np.dot(np.dot(rotation_matrix, translation_matrix), shear_matrix), zoom_matrix)
+
+            transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
+            x = apply_transform(x, transform_matrix, img_channel_index,
+                                fill_mode=self.fill_mode, cval = -2)
+
+            if self.safe_transform:
+                if np.any(x == -2):
+                    show_image(x)
+                    assert False
+            
+            if y is not None:
+                y = [apply_transform(_y, transform_matrix, img_channel_index,
+                                        fill_mode=self.fill_mode, cval = 0) for _y in y]
 
         if self.channel_shift_range != 0:
             x = random_channel_shift(x, self.channel_shift_range, img_channel_index)
