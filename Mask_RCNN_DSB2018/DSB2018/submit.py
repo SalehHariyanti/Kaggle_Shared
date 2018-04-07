@@ -424,8 +424,8 @@ def combine_semantic(masks, semantic_masks, param_dict):
     we assign that pixel to the mask with the highest score.
     """
 
-    dilate_kernel = param_dict['dilate_kernel'] if 'dilate_kernel' in param_dict else np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype = np.uint8)
-    erode_kernel = param_dict['erode_kernel'] if 'erode_kernel' in param_dict else None
+    n_dilate = param_dict['n_dilate'] if 'n_dilate' in param_dict else 1
+    n_erode = param_dict['n_erode'] if 'n_erode' in param_dict else 0
 
     # Each mask lies between an eroded version of itself and 
     # a dilated version of itself, the pixels in between 
@@ -436,11 +436,11 @@ def combine_semantic(masks, semantic_masks, param_dict):
         original_overlap = np.multiply(masks[:, :, i], semantic_masks)
 
         # Step 2: erode the mask.
-        eroded_mask = cv2.erode(masks[:, :, i].astype(np.uint8), kernel = erode_kernel) if erode_kernel is not None else masks[:, :, i]
+        eroded_mask = scipy.ndimage.morphology.binary_erosion(masks[:, :, i], iterations = n_erode) if n_erode > 0 else masks[:, :, i]
         eroded_plus_overlap = ((eroded_mask + original_overlap) > 0).astype(np.int)
 
         # Step 3: dilate the mask and find overlap with semantic
-        dilated_mask = cv2.dilate(masks[:, :, i].astype(np.uint8), kernel = dilate_kernel) if dilate_kernel is not None else masks[:, :, i]
+        dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate) if n_dilate > 0 else masks[:, :, i]
         dilated_overlap = np.multiply(dilated_mask, semantic_masks)
 
         # Step 4: combine: new mask = eroded mask + original overlap + dilated overlap
@@ -1103,8 +1103,8 @@ def main():
                            augment_flips = True, augment_scale = True,
                            nms_threshold = 0.5, voting_threshold = 0.5,
                            param_dict = {'scales': [0.85, 0.9, 0.95],
-                                         'dilate_kernel': np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype = np.uint8),
-                                         'erode_kernel': None},
+                                         'n_dilate': 1,
+                                         'n_erode': 0},
                            use_semantic = True, epoch = 25)
 
         """
