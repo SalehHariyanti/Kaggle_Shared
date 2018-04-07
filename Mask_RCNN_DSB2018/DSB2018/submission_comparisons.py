@@ -117,8 +117,7 @@ def masks_for_test_mosaics(submission_dir):
 
 def main():
     # Overwrite filenames with the submissions you wish to compare
-    compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406203610_.csv'),
-                         os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406134755_.csv'),
+    compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_2_0.3_20180407100327_.csv'),
                          os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180402101810_.csv')])
     #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
     #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')

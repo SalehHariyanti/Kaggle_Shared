@@ -46,7 +46,7 @@ def combine_results(_results, N, iou_threshold, voting_threshold, use_nms):
     return results
 
 
-def apply_flips_rotations(_config, images):
+def apply_flips_rotations(_config, images, param_dict):
 
     images_flip = [images, 
                 [np.fliplr(img) for img in images], 
@@ -80,7 +80,7 @@ def reverse_flips_rotations(results_flip, images):
     return results_flip
 
 
-def apply_scaling(_config, images, scales = [0.8, 0.9, 1]):
+def apply_scaling(_config, images, augment_param_dict):
     """
     Extract the images that would normally be fed into maskrcnn and rescale from here
     NB: because of how maskrcnn resizes, images are scaled up to reach 
@@ -89,6 +89,9 @@ def apply_scaling(_config, images, scales = [0.8, 0.9, 1]):
     maximum anyway. So we can only generate different scaled inputs by scaling downwards.
     Hence default scales set to 0.8, 0.9, 1.
     """
+
+    assert 'scales' in augment_param_dict.keys()
+    scales = augment_param_dict['scales']
 
     # Note: output of utils is: image, window, scale, padding
     model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
@@ -120,7 +123,7 @@ def reverse_scaling(results_scale, images):
     return results_scale
 
 
-def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, use_nms = False):
+def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, augment_param_dict = {}, use_nms = False):
     """
     Augments images subject to list_fn_apply and combines results via 
     non-maximum suppression if use_nms is True, otherwises uses merging + voting
@@ -129,7 +132,7 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
     # Apply the augmentations requested
     # NB: augmentations must include the original (unaugmented) image, if requested
     # fn_apply returns: lists of images and corresponding mask_scale, fn_reverse
-    images_info = [globals()[fn_apply](_config, images) for fn_apply in list_fn_apply]
+    images_info = [globals()[fn_apply](_config, images, augment_param_dict) for fn_apply in list_fn_apply]
 
     results_augment = []
 
@@ -477,6 +480,7 @@ def combine_labels(label_list, score_list, border_threshold = 5):
 
 def predict_model(_config, dataset, epoch = None, 
                   augment_flips = False, augment_scale = False, 
+                  augment_param_dict = {},
                   nms_threshold = 0.3, voting_threshold = 0.5,
                   img_pad = 0, dilate = False, 
                   save_predictions = False, create_submission = True):
@@ -512,7 +516,7 @@ def predict_model(_config, dataset, epoch = None,
         # Run detection
         list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
         if len(list_fn_apply) > 0:
-            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold = nms_threshold, voting_threshold = voting_threshold, use_nms = False)
+            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold = nms_threshold, voting_threshold = voting_threshold, augment_param_dict = augment_param_dict, use_nms = False)
         else:
             r = model.detect(images, verbose=0)
         
@@ -828,11 +832,13 @@ def predict_mosaics_plus_originals(configs, datasets, epoch = None, augment_flip
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
-def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False, save_predictions = False, create_submission = True):
+def predict_tiled_model(_config, dataset, epoch = None, area_threshold = 0, nuclei_threshold = 0,
+                        grid_shape = (2, 2), nms_threshold = 0.3, nms_tiles = False, save_predictions = False, create_submission = True):
     """
     Predict masks for each image by splitting the original image up into tiles,
     making predictions for these, and subsequently stitching them back together.
-    Only predict via tiling if the image area is > tile_threshold. Otherwise detect as normal.
+    Only predict via tiling if the image area is > area_threshold or number of predicted nuclei > nuclei_threshold. 
+    Otherwise detect as normal.
     """
 
     # Create save_dir
@@ -860,17 +866,17 @@ def predict_tiled_model(_config, dataset, epoch = None, tile_threshold = 0, grid
                 images.append(images[-1])
 
         # Run detection
-        # maskrcnn_detect_tiles if img_size > threshold else regular detection
+        # maskrcnn_detect_tiles if img_size > pixel_threshold or num nuclei > nuclei_threshold else regular detection
         # NB: We detect for all images in each case as we need to keep batch sizes consistent
             
-        img_size = [np.product(img.shape[:2]) for img in images]
-        detect_tiles = [s > tile_threshold for s in img_size]
+        r_orig = model.detect(images)
+
+        img_area = [np.product(img.shape[:2]) for img in images]
+        n_nuclei = [_r['masks'].shape[-1] for _r in r_orig]
+        detect_tiles = [(s > area_threshold) or (n > nuclei_threshold) for s, n in zip(img_area, n_nuclei)]
 
         if np.any(detect_tiles):
             r_tiles = maskrcnn_detect_tiles(model, images, grid_shape = grid_shape, nms_threshold = nms_threshold, nms_tiles = nms_tiles)
-
-        if not np.all(detect_tiles):
-            r_orig = model.detect(images)
 
         r = [r_tiles[j] if detect_tiles[j] else r_orig[j] for j in range(len(detect_tiles))]
 
@@ -1010,10 +1016,15 @@ def main():
         predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced, 'predict_model', epoch=20)
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
+        """
         predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 
                            augment_flips = True, augment_scale = True, 
                            nms_threshold = 0.5, voting_threshold = 0.5,
+                           augment_param_dict = {'scales': [0.8, 0.9, 1]},
                            create_submission = True, save_predictions = False)
+        """
+        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model', 
+                           create_submission = False, save_predictions = False)
 
 if __name__ == '__main__':
     main()
