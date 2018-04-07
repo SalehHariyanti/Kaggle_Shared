@@ -2609,7 +2609,7 @@ class MaskRCNN():
 
         return model
 
-    def find_last(self, dir_preffix=''):
+    def find_last(self):
         """Finds the last checkpoint file of the last trained model in the
         model directory.
         Returns:
@@ -2618,9 +2618,7 @@ class MaskRCNN():
         """
         # Get directory names. Each directory corresponds to a model
         dir_names = next(os.walk(self.model_dir))[1]
-        key = dir_preffix + self.config.NAME.lower()
-        print(dir_names, key)
-
+        key = self.config.NAME.lower()
         dir_names = filter(lambda f: f.startswith(key), dir_names)
         dir_names = sorted(dir_names)
         if not dir_names:
@@ -3552,8 +3550,7 @@ class BespokeMaskRCNN(MaskRCNN):
         class_ids = detections[:N, 4].astype(np.int32)
         scores = detections[:N, 5]
         masks = mrcnn_mask[np.arange(N), :, :, class_ids]
-        sem_masks = semantic_masks[np.arange(N), :, :]
-
+        
         # Compute scale and shift to translate coordinates to image domain.
         h_scale = image_shape[0] / (window[2] - window[0])
         w_scale = image_shape[1] / (window[3] - window[1])
@@ -3567,6 +3564,7 @@ class BespokeMaskRCNN(MaskRCNN):
 
         # Filter out detections with zero area. Often only happens in early
         # stages of training when the network weights are still a bit random.
+        # NB: semantic masks are not included in this screening
         exclude_ix = np.where(
             (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1]) <= 0)[0]
         if exclude_ix.shape[0] > 0:
@@ -3574,18 +3572,17 @@ class BespokeMaskRCNN(MaskRCNN):
             class_ids = np.delete(class_ids, exclude_ix, axis=0)
             scores = np.delete(scores, exclude_ix, axis=0)
             masks = np.delete(masks, exclude_ix, axis=0)
-            sem_masks = np.delete(sem_masks, exclude_ix, axis=0)
             N = class_ids.shape[0]
 
         # Resize masks to original image size and set boundary threshold.
         full_masks = []
-        full_semantic_masks = []
         for i in range(N):
             # Convert neural network mask to full size mask
             full_masks.append(utils.unmold_mask(masks[i], boxes[i], image_shape))
-            full_semantic_masks.append(self.unmold_maskrcnn_mask(sem_masks[i], image_shape, window))
         full_masks = np.stack(full_masks, axis=-1)\
             if full_masks else np.empty((0,) + masks.shape[1:3])
+
+        full_semantic_masks = np.squeeze(self.unmold_maskrcnn_mask(semantic_mask, image_shape, window))
 
         return boxes, class_ids, scores, full_masks, full_semantic_masks
 
@@ -3716,7 +3713,7 @@ class BespokeMaskRCNN(MaskRCNN):
                 self.epoch = int(m.group(6)) + 1
 
         # Directory for training logs
-        self.log_dir = os.path.join(self.model_dir, "{}{}{:%Y%m%dT%H%M}".format('BespokeMaskRCNN',
+        self.log_dir = os.path.join(self.model_dir, "{}{}{:%Y%m%dT%H%M}".format(self.__class__.__name__,
             self.config.NAME.lower(), now))
 
         # Path to save after each epoch. Include placeholders that get filled by Keras.
@@ -3726,6 +3723,31 @@ class BespokeMaskRCNN(MaskRCNN):
         self.checkpoint_path = self.checkpoint_path.replace(
             "*epoch*", "{epoch:04d}")
 
+    def find_last(self):
+        """Finds the last checkpoint file of the last trained model in the
+        model directory.
+        Returns:
+            log_dir: The directory where events and weights are saved
+            checkpoint_path: the path to the last checkpoint file
+        """
+        # Get directory names. Each directory corresponds to a model
+        dir_names = next(os.walk(self.model_dir))[1]
+        key =  self.__class__.__name__ + self.config.NAME.lower()
+        
+        dir_names = filter(lambda f: f.startswith(key), dir_names)
+        dir_names = sorted(dir_names)
+        if not dir_names:
+            return None, None
+        # Pick last directory
+        dir_name = os.path.join(self.model_dir, dir_names[-1])
+        # Find the last checkpoint
+        checkpoints = next(os.walk(dir_name))[2]
+        checkpoints = filter(lambda f: f.startswith("mask_rcnn"), checkpoints)
+        checkpoints = sorted(checkpoints)
+        if not checkpoints:
+            return dir_name, None
+        checkpoint = os.path.join(dir_name, checkpoints[-1])
+        return dir_name, checkpoint
 
 ############################################################
 # Keras helper functions

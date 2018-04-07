@@ -370,13 +370,10 @@ def create_model(_config, model_name, epoch = None):
     # Get path to saved weights
     # Either set a specific path or find last trained weights
     # model_path = os.path.join(ROOT_DIR, ".h5 file name here")
-
-    print(model)
-    dir_preffix = model_name if model_name != 'MaskRCNN' else ''
     if epoch is not None:
-        model_path = model.find_last(dir_preffix)[1][:-7] + '00' + str(epoch) + '.h5'
+        model_path = model.find_last()[1][:-7] + '00' + str(epoch) + '.h5'
     else:
-        model_path = model.find_last(dir_preffix)[1]
+        model_path = model.find_last()[1]
 
     # Load trained weights (fill in path to trained weights here)
     assert model_path != "", "Provide path to trained weights"
@@ -565,84 +562,29 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
         f.write2csv(submission_filename, ImageId, EncodedPixels)
         return submission_filename
 
+    return ImageId, EncodedPixels
 
-def predict_multiple(configs, datasets, epoch = None, augment_flips = False, augment_scale = False, nms_threshold = 0.3, save_predictions = False, create_submission = True):
 
-    # Create save_dir
-    if save_predictions:
-        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
-        os.makedirs(save_dir)
+def predict_multiple(configs, datasets, model_name='MaskRCNN', epoch = None, 
+                  augment_flips = False, augment_scale = False, 
+                  augment_param_dict = {},
+                  nms_threshold = 0.3, voting_threshold = 0.5,
+                  img_pad = 0, dilate = False, 
+                  save_predictions = False, create_submission = True):
 
     ImageId = []
     EncodedPixels = []
 
     for _config, dataset in zip(configs, datasets):
-        # Recreate the model in inference mode
-        model = modellib.MaskRCNN(mode="inference", 
-                                  config=_config,
-                                  model_dir=_config.MODEL_DIR)
-
-        # Get path to saved weights
-        # Either set a specific path or find last trained weights
-        # model_path = os.path.join(ROOT_DIR, ".h5 file name here")
-        if epoch is not None:
-            model_path = model.find_last()[1][:-7] + '00' + str(epoch) + '.h5'
-        else:
-            model_path = model.find_last()[1]
-
-        # Load trained weights (fill in path to trained weights here)
-        assert model_path != "", "Provide path to trained weights"
-        print("Loading weights from ", model_path)
-        model.load_weights(model_path, by_name=True)
-
-        '''
-        load test dataset one by one. Note that masks are resized (back) in model.detect
-        rle2csv
-        '''        
-    
-        # NB: we need to predict in batches of _config.BATCH_SIZE
-        # as there are layers within the model that have strides dependent on this.
-        for i in range(0, len(dataset.image_ids), _config.BATCH_SIZE):
-             # Load image
-            images = []
-            N = 0
-            for idx in range(i, i + _config.BATCH_SIZE):
-                if idx < len(dataset.image_ids):
-                    N += 1
-                    images.append(dataset.load_image(dataset.image_ids[idx]))
-                else:
-                    images.append(images[-1])
-
-            # Run detection
-            if augment_flips:
-                r = maskrcnn_detect_flips(model, images, threshold = nms_threshold)
-            elif augment_scale:
-                r = maskrcnn_detect_scale(model, images, threshold = nms_threshold)
-            else:
-                r = model.detect(images, verbose=0)
         
-            # Reduce to N images
-            for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
-
-                if j < N:   
-
-                    masks = r[j]['masks'] #[H, W, N] instance binary masks
-    
-                    img_name = dataset.image_info[idx]['name']
-        
-                    ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, r[j]['scores'])
-                    ImageId += ImageId_batch
-                    EncodedPixels += EncodedPixels_batch
-
-                    if False:
-                        class_names = ['background', 'nucleus']
-                        visualize.display_instances((images[j] * 255).astype(np.uint8), r[j]['rois'], r[j]['masks'], r[j]['class_ids'], class_names, r[j]['scores'], figsize = (8, 8))
-
-                    if save_predictions:
-                        # Extract final masks from EncodedPixels_batch here and save
-                        # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                        save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
-
+        _ImageId, _EncodedPixels = predict_model(_config, dataset, model_name = model_name, epoch = epoch, 
+                                                  augment_flips = augment_flips, augment_scale = augment_scale, 
+                                                  augment_param_dict = augment_param_dict,
+                                                  nms_threshold = nms_threshold, voting_threshold = voting_threshold,
+                                                  img_pad = img_pad, dilate = dilate, 
+                                                  save_predictions = save_predictions, create_submission = False)
+        ImageId += _ImageId
+        EncodedPixels += _EncodedPixels
 
     if create_submission:                   
 
