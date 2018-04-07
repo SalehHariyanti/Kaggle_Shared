@@ -47,6 +47,8 @@ assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 if os.name != 'nt':
     # TODO: ADD TRY/EXCEPT
     from iterm import show_image
+    #import memory_saving_gradients
+    #K.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 else:
     show_image = None
 
@@ -2607,7 +2609,7 @@ class MaskRCNN():
 
         return model
 
-    def find_last(self):
+    def find_last(self, dir_preffix=''):
         """Finds the last checkpoint file of the last trained model in the
         model directory.
         Returns:
@@ -2616,7 +2618,9 @@ class MaskRCNN():
         """
         # Get directory names. Each directory corresponds to a model
         dir_names = next(os.walk(self.model_dir))[1]
-        key = self.config.NAME.lower()
+        key = dir_preffix + self.config.NAME.lower()
+        print(dir_names, key)
+
         dir_names = filter(lambda f: f.startswith(key), dir_names)
         dir_names = sorted(dir_names)
         if not dir_names:
@@ -3946,8 +3950,9 @@ class XY_ImageDataGenerator(object):
                 attempts_left -= 1
             else:
                 edges_outside_image = False
-
-        #print(edges, attempts_left)
+                
+        if self.safe_transform:                
+            print(zx, zy, tx, ty, edges, transformed_edges, attempts_left)
 
         # use composition of homographies to generate final transform that needs to be applied
         if self.rotation_range:
@@ -3984,7 +3989,7 @@ class XY_ImageDataGenerator(object):
                                 fill_mode=self.fill_mode, cval = -2)
 
             if self.safe_transform:
-                if np.any(x == -2)
+                if np.any(x == -2):
                     show_image(x)
                     assert False
             

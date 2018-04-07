@@ -9,7 +9,6 @@ import utils
 import random
 from settings import train_dir, supplementary_dir, train_mosaics_dir, test_mosaics_dir, base_dir
 import getpass
-
 USER = getpass.getuser()
 
 def load_weights(model, _config, init_with_override = None):
@@ -362,15 +361,18 @@ def train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig(tra
         return configs, dataset
 
 
-def train_resnet101_flips_alldata_minimask12_double_invert_semantic(training = True):
+def train_resnet101_flipsrot_minimask12_double_invert_semantic(training = True):
 
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
                                mini_mask_shape = 12,
-                               identifier = 'double_invert',
+                               images_per_gpu = 1 if USER == 'antor' else 2 , 
+                               identifier = 'double_invert_semantic',
                                augmentation_dict = {'dim_ordering': 'tf',
                                                     'horizontal_flip': True,
-                                                    'vertical_flip': True})
+                                                    'vertical_flip': True, 
+                                                    'rots' : True })
+    model_name = 'BespokeMaskRCNN'
 
     if training:
         # Training dataset
@@ -385,11 +387,11 @@ def train_resnet101_flips_alldata_minimask12_double_invert_semantic(training = T
             dataset_val.prepare()
 
         # Create model in training mode
-        model = modellib.BespokeMaskRCNN(mode="training", config=_config,
+        model = getattr(modellib, model_name)(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
-        model.train(dataset_train, dataset_val if USER != 'antor' else None,
+        model.train(dataset_train, None if USER == 'antor' else dataset_val,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=30,
                     layers='all')
@@ -397,7 +399,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert_semantic(training = T
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
-        return _config, dataset
+        return _config, dataset, model_name
 
 def train_resnet101_flips_256_minimask12_double_invert(training = True):
 
@@ -449,6 +451,7 @@ def train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic(train
                                                     'zoom_range': [0.8, 1],
                                                     'rots': True,
                                                     })
+    model_name = 'BespokeMaskRCNN'
 
     if training:
         # Training dataset
@@ -462,7 +465,7 @@ def train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic(train
         dataset_val.prepare()
 
         # Create model in training mode
-        model = modellib.BespokeMaskRCNN(mode="training", config=_config,
+        model = getattr(modellib, model_name)(mode="training", config=_config,
                                   model_dir=_config.MODEL_DIR)
         model = load_weights(model, _config)
     
@@ -474,13 +477,14 @@ def train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic(train
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
-        return _config, dataset
+        return _config, dataset, model_name
 
 
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
-        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced()
+        #train_resnet101_flipsrot_minimask12_double_invert_semantic()
+        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced_safe()
     else:
         train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic()
 
