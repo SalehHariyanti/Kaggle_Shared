@@ -689,8 +689,8 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
             if j < N:   
 
                 masks = r[j]['masks'] #[H, W, N] instance binary masks
-                boxes = r[j]['rois']
                 scores = r[j]['scores']
+                boxes = r[j]['rois']
 
                 if img_pad > 0:
 
@@ -710,10 +710,11 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
 
                     # Dilate masks within boundary box perimeters
                     box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, masks.shape[:2])
-
                     dilated_masks = []
                     for i in range(masks.shape[-1]):
                         dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate)
+                        #from visualize import plot_multiple_images, image_with_masks;                   
+                        #plot_multiple_images([image_with_masks(masks[:, :, i], [box_labels == (i + 1)]), np.multiply(box_labels == (i + 1), dilated_mask)])
                         dilated_masks.append(np.multiply(box_labels == (i + 1), dilated_mask))
 
                     masks = np.stack(dilated_masks, axis = -1)
@@ -1268,6 +1269,8 @@ def main():
                                             'n_erode': 2},
                             use_semantic = True, epoch = 25)
         """
+        """
+        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408161126_
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                     augment_flips = True, augment_scale = True,
                     nms_threshold = 0.5, voting_threshold = 0.5,
@@ -1275,6 +1278,23 @@ def main():
                                     'n_dilate': 2,
                                     'n_erode': 0},
                     use_semantic = True, epoch = 25)
+        """
+        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
+                    augment_flips = True, augment_scale = True,
+                    nms_threshold = 0.5, voting_threshold = 0.5,
+                    param_dict = {'scales': [0.85, 0.9, 0.95],
+                                    'n_dilate': 1,
+                                    'n_erode': 0},
+                    use_semantic = True, epoch = 25)
+
+        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
+                    augment_flips = True, augment_scale = True,
+                    nms_threshold = 0.5, voting_threshold = 0.5,
+                    param_dict = {'scales': [0.85, 0.9, 0.95],
+                                    'n_dilate': 1,
+                                    'n_erode': 0},
+                    dilate = True,
+                    use_semantic = False, epoch = 25)
 
 if __name__ == '__main__':
     main()

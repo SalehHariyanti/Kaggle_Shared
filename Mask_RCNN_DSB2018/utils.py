@@ -27,7 +27,7 @@ COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0
 #  Bounding Boxes
 ############################################################
 
-def extract_bboxes(mask):
+def extract_bboxes(mask, boundary_pixels = 0):
     """Compute bounding boxes from masks.
     mask: [height, width, num_instances]. Mask pixels are either 1 or 0.
 
@@ -52,6 +52,13 @@ def extract_bboxes(mask):
             # resizing or cropping. Set bbox to zeros
             x1, x2, y1, y2 = 0, 0, 0, 0
         boxes[i] = np.array([y1, x1, y2, x2])
+
+    # Incorporate boundary pixels
+    if boundary_pixels != 0:
+        boxes[:, [0, 1]] = np.maximum(0, boxes[:, [0, 1]] - boundary_pixels)
+        boxes[:, 2] = np.minimum(mask.shape[0], boxes[:, 2] + boundary_pixels)
+        boxes[:, 3] = np.minimum(mask.shape[1], boxes[:, 3] + boundary_pixels)
+
     return boxes.astype(np.int32)
 
 
