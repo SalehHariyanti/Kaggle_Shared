@@ -1279,6 +1279,8 @@ def main():
                                     'n_erode': 0},
                     use_semantic = True, epoch = 25)
         """
+
+        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408201213_
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                     augment_flips = True, augment_scale = True,
                     nms_threshold = 0.5, voting_threshold = 0.5,
@@ -1287,6 +1289,7 @@ def main():
                                     'n_erode': 0},
                     use_semantic = True, epoch = 25)
 
+        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408202719_
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                     augment_flips = True, augment_scale = True,
                     nms_threshold = 0.5, voting_threshold = 0.5,
