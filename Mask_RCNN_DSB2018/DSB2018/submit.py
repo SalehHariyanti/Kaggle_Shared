@@ -228,7 +228,7 @@ def maskrcnn_detect(_config, model, images, param_dict = {}, use_semantic = Fals
 
     if use_semantic:
         for r in results:
-            r['masks'] = combine_semantic(r['masks'], r['semantic_masks'], param_dict)
+            r['masks'] = combine_semantic(r['rois'], r['scores'], r['masks'], r['semantic_masks'], param_dict)
 
     return results
 
@@ -398,7 +398,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
         # Reduce to single semantic mask
         semantic_masks = (np.sum(semantic_masks, axis = -1) > 0).astype(np.int)
 
-        masks = combine_semantic(masks, semantic_masks, param_dict)
+        masks = combine_semantic(boxes, scores, masks, semantic_masks, param_dict)
 
     #from visualize import plot_multiple_images; plot_multiple_images([np.sum(img_results['masks'], axis = 0), np.sum(masks, axis = 0)], nrows = 1, ncols = 2)
     
@@ -418,7 +418,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
     return img_results
 
 
-def combine_semantic(masks, semantic_masks, param_dict):
+def combine_semantic(boxes, scores, masks, semantic_masks, param_dict):
     """
     For each semantic_mask pixel that falls within the box of a mask
     we assign that pixel to the mask with the highest score.
@@ -427,26 +427,61 @@ def combine_semantic(masks, semantic_masks, param_dict):
     n_dilate = param_dict['n_dilate'] if 'n_dilate' in param_dict else 1
     n_erode = param_dict['n_erode'] if 'n_erode' in param_dict else 0
 
-    # Each mask lies between an eroded version of itself and 
-    # a dilated version of itself, the pixels in between 
-    # being dictated by the overlap with semantic.
-    for i in range(masks.shape[-1]):
+    if n_dilate > 0 or n_erode > 0:
 
-        # Step 1: find the overlap with semantic. 
-        original_overlap = np.multiply(masks[:, :, i], semantic_masks)
+        # Make a mask of box labels
+        box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, semantic_masks.shape)
 
-        # Step 2: erode the mask.
-        eroded_mask = scipy.ndimage.morphology.binary_erosion(masks[:, :, i], iterations = n_erode) if n_erode > 0 else masks[:, :, i]
-        eroded_plus_overlap = ((eroded_mask + original_overlap) > 0).astype(np.int)
+        # Each mask lies between an eroded version of itself and 
+        # a dilated version of itself, the pixels in between 
+        # being dictated by the overlap with semantic.
+        for i in range(masks.shape[-1]):
 
-        # Step 3: dilate the mask and find overlap with semantic
-        dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate) if n_dilate > 0 else masks[:, :, i]
-        dilated_overlap = np.multiply(dilated_mask, semantic_masks)
+            # Step 1: find the overlap with semantic. 
+            original_overlap = np.multiply(masks[:, :, i], semantic_masks)
 
-        # Step 4: combine: new mask = eroded mask + original overlap + dilated overlap
-        masks[:, :, i] = ((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int)
+            # Step 2: erode the mask.
+            eroded_mask = scipy.ndimage.morphology.binary_erosion(masks[:, :, i], iterations = n_erode) if n_erode > 0 else masks[:, :, i]
+            eroded_plus_overlap = ((eroded_mask + original_overlap) > 0).astype(np.int)
 
-    # from visualize import plot_multiple_images; plot_multiple_images([original_overlap, eroded_mask, eroded_plus_overlap, ((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int), masks[:, :, i]])
+            # Step 3: dilate the mask within box boundaries and find overlap with semantic
+            dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate) if n_dilate > 0 else masks[:, :, i]
+            dilated_overlap = np.multiply(dilated_mask, np.multiply(box_labels == (i + 1), semantic_masks))
+
+            # Step 4: combine: new mask = eroded mask + original overlap + dilated overlap
+            masks[:, :, i] = ((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int)
+
+        # from visualize import plot_multiple_images; plot_multiple_images([original_overlap, eroded_mask, eroded_plus_overlap, ((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int), masks[:, :, i]])
+        # from visualize import plot_multiple_images; plot_multiple_images([original_overlap, eroded_mask, dilated_mask, ((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int), masks[:, :, i], np.abs(((eroded_plus_overlap + dilated_overlap) > 0).astype(np.int) - masks[:,:,i])], nrows = 2, ncols = 3)
+
+    return masks
+
+
+def old_combine_semantic(boxes, scores, masks, semantic_masks):
+    """
+    For each semantic_mask pixel that falls within the box of a mask
+    we assign that pixel to the mask with the highest score.
+    """
+
+    # Make a mask of box labels
+    box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, semantic_masks.shape)
+
+    # Determine which pixels feature in semantic_masks but not masks
+    masks_to_semantic = (np.sum(masks, axis = -1) > 0).astype(np.int)
+    residual_semantic = np.logical_and(masks_to_semantic == 0, semantic_masks == 1).astype(np.int)
+
+    # Determine which residual pixels overlap with box labels
+    box_overlap = np.multiply(box_labels, residual_semantic)
+
+    # For each unique case in box_overlap, dilate the mask and then assign the dilated pixels if they overlap with residual_semantic 
+    boxes_with_overlap = np.unique(box_overlap[box_overlap > 0])
+    for b in boxes_with_overlap:
+        # NB: boxes_with_overlap are indexed + 1 relative to masks (to account for background of zero)
+        dilated_mask = cv2.dilate(masks[:, :, b - 1].astype(np.uint8), kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype = np.uint8))
+        masks[:, :, b - 1] = ((masks[:, :, b - 1] + np.multiply(dilated_mask, (box_overlap == b))) > 0).astype(np.int)
+
+    # from visualize import plot_multiple_images; plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
+    # plot_multiple_images([masks_to_semantic, semantic_masks, residual_semantic, (np.sum(masks, axis = -1) > 0).astype(np.int)])
     return masks
 
 
@@ -617,6 +652,11 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
     ImageId = []
     EncodedPixels = []
     
+    list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
+    
+    if dilate:
+        n_dilate = param_dict['n_dilate'] if 'n_dilate' in param_dict else 1
+
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
     for i in tqdm(range(0, len(dataset.image_ids), _config.BATCH_SIZE)):
@@ -635,7 +675,6 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                 images.append(images[-1])
 
         # Run detection
-        list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
         if len(list_fn_apply) > 0:
             r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, 
                                               threshold = nms_threshold, voting_threshold = voting_threshold, 
@@ -650,6 +689,8 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
             if j < N:   
 
                 masks = r[j]['masks'] #[H, W, N] instance binary masks
+                boxes = r[j]['rois']
+                scores = r[j]['scores']
 
                 if img_pad > 0:
 
@@ -666,14 +707,20 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                     r[j]['rois'] = r[j]['rois'][valid]
    
                 if dilate:
-                    masks = np.stack([cv2.dilate(mask.astype(np.uint8), 
-                                                 kernel = np.array([[0, 1, 0],
-                                                                    [1, 1, 1], 
-                                                                    [0, 1, 0]], dtype = np.uint8)) for mask in np.moveaxis(masks, -1, 0)], axis = -1)
+
+                    # Dilate masks within boundary box perimeters
+                    box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, masks.shape[:2])
+
+                    dilated_masks = []
+                    for i in range(masks.shape[-1]):
+                        dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate)
+                        dilated_masks.append(np.multiply(box_labels == (i + 1), dilated_mask))
+
+                    masks = np.stack(dilated_masks, axis = -1)
 
                 img_name = dataset.image_info[idx]['name']
         
-                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, r[j]['scores'])
+                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(masks, img_name, scores)
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
@@ -695,9 +742,10 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
     return ImageId, EncodedPixels
 
 
-def predict_multiple(configs, datasets, model_name='MaskRCNN', epoch = None, 
+def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = None, 
                   augment_flips = False, augment_scale = False, 
                   param_dict = {},
+                  use_semantic = False,
                   nms_threshold = 0.3, voting_threshold = 0.5,
                   img_pad = 0, dilate = False, 
                   save_predictions = False, create_submission = True):
@@ -782,6 +830,108 @@ def predict_nms(configs, datasets, epoch = None, augment_flips = False, augment_
                     # Extract final masks from EncodedPixels_batch here and save
                     # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
                     save_model_predictions(save_dir, EncodedPixels_batch, masks.shape[:2], dataset.image_info[idx])
+
+
+    if create_submission:
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
+                                                    '_'.join([_config.NAME for _config in configs]), 
+                                                    str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None, 
+                  augment_flips = False, augment_scale = False, 
+                  param_dict = {},
+                  use_semantic = False,
+                  nms_threshold = 0.3, voting_threshold = 0.5,
+                  img_pad = 0, dilate = False, 
+                  save_predictions = False, create_submission = True):
+    """
+    Predicts an ensemble over multiple models via voting
+    Presently assumes that epoch/augment_flips/scal/param_dict/threshold/use_semantic are the same 
+    for all models you want to ensemble. Need to reformat to make these specific to each model.
+    """
+    # Create save_dir
+    if save_predictions:
+        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
+        os.makedirs(save_dir)
+
+    ImageId = []
+    EncodedPixels = []
+
+    models = [create_model(_config, epoch) for _config in configs]
+    n_images = len(datasets[0].image_ids)
+    batch_size = max([_config.BATCH_SIZE for _config in configs])
+
+    # NB: we need to predict in batches of _config.BATCH_SIZE
+    # as there are layers within the model that have strides dependent on this.
+    for i in range(0, n_images, batch_size):
+
+        images = [load_dataset_images(dataset, i, batch_size) for dataset in datasets]
+
+        # Run detection
+        res = []
+        for model, _images, _config in zip(models, images, configs):
+
+            if _configs.BATCH_SIZE == batch_size:
+
+                # Run detection
+                if len(list_fn_apply) > 0:
+                    r = maskrcnn_detect_augmentations(_config, model, _images, list_fn_apply, 
+                                                      threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                                      param_dict = param_dict, 
+                                                      use_nms = False, use_semantic = use_semantic)
+                else:
+                    r = maskrcnn_detect(_config, model, _images, param_dict = param_dict, use_semantic = use_semantic) 
+                res.append(r)
+
+            else:
+
+                assert _configs.BATCH_SIZE == 1
+
+                r = []
+                for img in _images:
+                    # Run detection
+                    if len(list_fn_apply) > 0:
+                        r.append(maskrcnn_detect_augmentations(_config, model, img, list_fn_apply, 
+                                                          threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                                          param_dict = param_dict, 
+                                                          use_nms = False, use_semantic = use_semantic))
+                    else:
+                        r.append(maskrcnn_detect(_config, model, img, param_dict = param_dict, use_semantic = use_semantic))
+
+                res.append(r)
+        
+        # Reduce to N images
+        for j, idx in enumerate(range(i, i + batch_size)):      
+
+            if idx < n_images:   
+
+                # Get masks via voting
+                
+                # First reshape masks so that they can be concatenated:
+                for r in res:
+                    r[j]['masks'] = np.moveaxis(r[j]['masks'], -1, 0)
+                
+                # Concatenate
+                img_results = du.concatenate_list_of_dicts([r[j] for r in res])
+
+                # Reduce via voting
+                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = False, n_votes = len(models))
+
+                img_name = datasets[0].image_info[idx]['name']
+        
+                ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
+                ImageId += ImageId_batch
+                EncodedPixels += EncodedPixels_batch
+
+                if False:
+                    class_names = ['background', 'nucleus']
+                    visualize.display_instances((images[j] * 255).astype(np.uint8), rois, masks, np.ones(scores.shape, dtype = np.int), class_names, scores, figsize = (8, 8))
+                    
+                if save_predictions:
+                    # Extract final masks from EncodedPixels_batch here and save
+                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
+                    save_model_predictions(save_dir, EncodedPixels_batch, img_results['masks'].shape[:2], dataset.image_info[idx])
 
 
     if create_submission:
@@ -1098,7 +1248,8 @@ def main():
                            param_dict = {'scales': [0.8, 0.9, 1]},
                            create_submission = True, save_predictions = False)
         """
-
+        """
+        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180407230421_
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                            augment_flips = True, augment_scale = True,
                            nms_threshold = 0.5, voting_threshold = 0.5,
@@ -1106,13 +1257,23 @@ def main():
                                          'n_dilate': 1,
                                          'n_erode': 1},
                            use_semantic = True, epoch = 25)
-
+        """
+        """
+        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180407233145_
+                predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 2,
+                                            'n_erode': 2},
+                            use_semantic = True, epoch = 25)
+        """
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
                     augment_flips = True, augment_scale = True,
                     nms_threshold = 0.5, voting_threshold = 0.5,
                     param_dict = {'scales': [0.85, 0.9, 0.95],
                                     'n_dilate': 2,
-                                    'n_erode': 2},
+                                    'n_erode': 0},
                     use_semantic = True, epoch = 25)
 
 if __name__ == '__main__':
