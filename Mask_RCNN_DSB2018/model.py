@@ -1400,7 +1400,7 @@ def load_image_gt_augment_nsb(dataset, config, image_id, augment=False,
 
     # Random augmentation
     if augment:
-        if 'nsb' in dataset.image_info(image_id)['path']:
+        if 'nsb' in dataset.image_info[image_id]['path'].lower():
             image, mask = random_crop(image, mask, 
                                         (np.random.randint(256, min(680, image.shape[0])), np.random.randint(256, min(680, image.shape[1]))), 2)
         else:

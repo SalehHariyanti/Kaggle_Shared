@@ -574,8 +574,8 @@ def train_resnet101_flipsrots_minimask12_nsbval(training=True):
 
 def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training = True):
 
-
     model_name = 'BespokeMaskRCNN'
+    dataset_kwargs = { 'invert_type' : 2 , 'cache' : DSB2018_Dataset.Cache.NONE }
 
     if training:
         _config = mask_rcnn_config2(init_with = 'coco',
@@ -584,6 +584,7 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
                             images_per_gpu = 2, 
                             rpn_nms_threshold = 0.9,
                             identifier = 'double_invert_semantic',
+                            fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
@@ -591,13 +592,15 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
                                                 'gaussian_blur': [-0.2, 0.2]})
 
         # Training dataset
-        dataset_train = DSB2018_Dataset(invert_type = 2)
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
         dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
+        for repeats in range(664//36):
+          dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
         dataset_train.prepare()
 
         if USER != 'antor':
             # Validation dataset
-            dataset_val = DSB2018_Dataset(invert_type = 2)
+            dataset_val = DSB2018_Dataset(**dataset_kwargs)
             dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
             dataset_val.prepare()
 
@@ -623,7 +626,7 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
                                                 'rots' : True,
                                                 'gaussian_blur': [-0.2, 0.2]})
 
-        dataset = DSB2018_Dataset(invert_type = 2)
+        dataset = DSB2018_Dataset(**dataset_kwargs)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
         return _config, dataset, model_name
@@ -681,7 +684,7 @@ def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
-        train_resnet101_flipsrot_minimask12_double_invert_semantic_trainsupp()
+        train_resnet101_flipsrot_minimask12_double_invert_semantic_config2()
     else:
         train_resnet101_flipsrot_minimask12_double_invert_semantic_config2()
 
