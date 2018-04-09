@@ -482,11 +482,53 @@ def train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic(train
         return _config, dataset, model_name
 
 
+def train_resnet101_flipsrots_minimask12_nsbval(training=True):
+
+   _config = mask_rcnn_config(init_with = 'coco',
+                              architecture = 'resnet101',
+                              train_data_root = train_dir,
+                              val_data_root = [os.path.join(base_dir, 'train_external', 'nsb'), os.path.join(base_dir, 'train_external', 'nsb_crop'), os.path.join(base_dir, 'train_external', 'ISBI')],
+                              mini_mask_shape = 12,
+                              identifier = 'suppval',
+                              augmentation_dict = {'dim_ordering': 'tf',
+                                                   'horizontal_flip': True,
+                                                   'vertical_flip': True,
+                                                   'rots':True})
+
+   if training:
+       # Training dataset
+       dataset_train = DSB2018_Dataset(invert_type = 2)
+       dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1.0)
+       dataset_train.prepare()
+
+       # Validation dataset
+       dataset_val = DSB2018_Dataset(invert_type = 2)
+       dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.0)
+       dataset_val.prepare()
+
+       # Create model in training mode
+       model = modellib.MaskRCNN(mode="training", config=_config,
+                                 model_dir=_config.MODEL_DIR)
+       model = load_weights(model, _config)
+   
+       model.train(dataset_train, dataset_val,
+                   learning_rate=_config.LEARNING_RATE,
+                   epochs=30,
+                   layers='all',
+                   augment_val = True)
+
+   else:
+
+       dataset = DSB2018_Dataset(invert_type = 2)
+       dataset.add_nuclei(test_dir, 'test', shuffle = False)
+       dataset.prepare()
+       return _config, dataset
+
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
-        train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced_safe()
+        train_resnet101_flipsrots_minimask12_nsbval()
     else:
         train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic()
 
