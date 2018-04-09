@@ -3819,7 +3819,7 @@ class XY_ImageDataGenerator(object):
                  rescale=None,
                  hsv_augmentation=False,
                  random_crop_shape = False,
-                 x_gaussian_blur = None,
+                 gaussian_blur = None,
                  x_noise = 0.,
                  y_gaussian_blur = None,
                  dim_ordering='default'):
@@ -3832,7 +3832,7 @@ class XY_ImageDataGenerator(object):
         self.rescale = rescale
         self.random_crop_shape = random_crop_shape
         self.x_noise = x_noise
-        self.x_gaussian_blur = x_gaussian_blur
+        self.gaussian_blur = gaussian_blur
         self.y_gaussian_blur = y_gaussian_blur
         self.contrast_stretching = contrast_stretching
         self.adaptive_equalization = adaptive_equalization
@@ -4007,6 +4007,12 @@ class XY_ImageDataGenerator(object):
         if self.histogram_equalization: 
             if np.random.random() < 0.5: 
                 x = exposure.equalize_hist(x) 
+
+        if self.gaussian_blur:
+            if np.random.random() < 0.5: 
+                sigma = np.random.uniform(self.gaussian_blur[0], self.gaussian_blur[1])
+                x = ndimage.filters.gaussian_filter(x, sigma = sigma)
+                y = [ndimage.filters.gaussian_filter(_y, sigma = sigma) for _y in y]
 
         if y is not None and self.y_gaussian_blur is not None:
             if np.random.random() < 0.5:

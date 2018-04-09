@@ -570,6 +570,63 @@ def train_resnet101_flipsrots_minimask12_nsbval(training=True):
         return _config, dataset
 
 
+def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training = True):
+
+
+    model_name = 'BespokeMaskRCNN'
+
+    if training:
+        _config = mask_rcnn_config2(init_with = 'coco',
+                            architecture = 'resnet101',
+                            mini_mask_shape = 12,
+                            images_per_gpu = 2, 
+                            rpn_nms_threshold = 0.9,
+                            identifier = 'double_invert_semantic',
+                            augmentation_dict = {'dim_ordering': 'tf',
+                                                'horizontal_flip': True,
+                                                'vertical_flip': True, 
+                                                'rots' : True,
+                                                'gaussian_blur': [-0.25, 0.25]})
+
+        # Training dataset
+        dataset_train = DSB2018_Dataset(invert_type = 2)
+        dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
+        dataset_train.prepare()
+
+        if USER != 'antor':
+            # Validation dataset
+            dataset_val = DSB2018_Dataset(invert_type = 2)
+            dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+            dataset_val.prepare()
+
+        # Create model in training mode
+        model = getattr(modellib, model_name)(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, None if USER == 'antor' else dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=30,
+                    layers='all')
+    else:
+        _config = mask_rcnn_config2(init_with = 'coco',
+                            architecture = 'resnet101',
+                            mini_mask_shape = 12,
+                            images_per_gpu = 2, 
+                            rpn_nms_threshold = 0.7,
+                            identifier = 'double_invert_semantic',
+                            augmentation_dict = {'dim_ordering': 'tf',
+                                                'horizontal_flip': True,
+                                                'vertical_flip': True, 
+                                                'rots' : True,
+                                                'gaussian_blur': [-0.25, 0.25]})
+
+        dataset = DSB2018_Dataset(invert_type = 2)
+        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.prepare()
+        return _config, dataset, model_name
+
+
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
