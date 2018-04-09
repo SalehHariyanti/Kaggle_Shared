@@ -611,8 +611,9 @@ def trainsupp_resnet101_flipsrot_minimask12_double_invert_semantic_config2(train
     
         model.train(dataset_train, None if USER == 'antor' else dataset_val,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=30,
-                    layers='all')
+                    epochs=100,
+                    layers='all',
+                    augment_val = True)
     else:
         _config = mask_rcnn_config2(init_with = 'coco',
                             architecture = 'resnet101',
@@ -671,7 +672,8 @@ def trainsupp_resnet50_flipsrot_minimask12_double_invert_semantic_config2(traini
         model.train(dataset_train, None if USER == 'antor' else dataset_val,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=100,
-                    layers='all')
+                    layers='all',
+                    augment_val = True)
     else:
         _config = mask_rcnn_config2(init_with = 'coco',
                             architecture = 'resnet50',
@@ -730,7 +732,8 @@ def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2(training 
         model.train(dataset_train, None if USER == 'antor' else dataset_val,
                     learning_rate=_config.LEARNING_RATE,
                     epochs=100,
-                    layers='all')
+                    layers='all',
+                    augment_val = True)
     else:
         _config = mask_rcnn_config2(init_with = 'coco',
                             architecture = 'resnet101',
