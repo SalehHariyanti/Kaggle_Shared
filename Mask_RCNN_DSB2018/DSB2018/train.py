@@ -586,7 +586,7 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
                                                 'rots' : True,
-                                                'gaussian_blur': [-0.25, 0.25]})
+                                                'gaussian_blur': [-0.2, 0.2]})
 
         # Training dataset
         dataset_train = DSB2018_Dataset(invert_type = 2)
@@ -619,7 +619,7 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
                                                 'rots' : True,
-                                                'gaussian_blur': [-0.25, 0.25]})
+                                                'gaussian_blur': [-0.2, 0.2]})
 
         dataset = DSB2018_Dataset(invert_type = 2)
         dataset.add_nuclei(test_dir, 'test', shuffle = False)
@@ -633,7 +633,7 @@ def main():
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
         train_resnet101_flips_all_rots_data_minimask12_detectionnms0_3_nocache_color_balanced_safe()
     else:
-        train_resnet101_flipsrots_minimask12_nsbval()
+        train_resnet101_flipsrot_minimask12_double_invert_semantic_config2()
 
 if __name__ == '__main__':
     main()
