@@ -14,6 +14,7 @@ from copy import deepcopy
 from tqdm import tqdm
 
 import visualize
+from visualize import image_with_masks, plot_multiple_images
 import matplotlib.pyplot as plt
 
 import train
@@ -746,6 +747,103 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
     return ImageId, EncodedPixels
 
 
+def predict_gt_model(_config, dataset, model_name='MaskRCNN', epoch = None, 
+                  augment_flips = False, augment_scale = False, 
+                  param_dict = {},
+                  nms_threshold = 0.3, voting_threshold = 0.5,
+                  use_semantic = False,
+                  img_pad = 0, dilate = False, 
+                  save_predictions = False, create_submission = True):
+
+    # Recreate the model in inference mode
+    model = create_model(_config, model_name, epoch)
+      
+    ImageId = []
+    EncodedPixels = []
+    
+    list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
+    
+    if dilate:
+        n_dilate = param_dict['n_dilate'] if 'n_dilate' in param_dict else 1
+
+    # NB: we need to predict in batches of _config.BATCH_SIZE
+    # as there are layers within the model that have strides dependent on this.
+    for i in tqdm(range(0, len(dataset.image_ids), _config.BATCH_SIZE)):
+         # Load image
+        images = []
+        gt = []
+        N = 0
+        for idx in range(i, i + _config.BATCH_SIZE):
+            if idx < len(dataset.image_ids):
+                N += 1
+                if img_pad > 0:
+                    img = dataset.load_image(dataset.image_ids[idx])                  
+                    images.append(np.stack([np.pad(img[:, :, i], img_pad, mode = 'reflect') for i in range(img.shape[-1])], axis = -1))
+                else:
+                    images.append(dataset.load_image(dataset.image_ids[idx]))
+                    gt.append(dataset.load_mask(dataset.image_ids[idx]))
+            else:
+                images.append(images[-1])
+                gt.append(gt[-1])
+
+        # Run detection
+        if len(list_fn_apply) > 0:
+            r = maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, 
+                                              threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                              param_dict = param_dict, 
+                                              use_nms = False, use_semantic = use_semantic)
+        else:
+            r = maskrcnn_detect(_config, model, images, param_dict = param_dict, use_semantic = use_semantic) 
+
+        # Reduce to N images
+        for j, idx in enumerate(range(i, i + _config.BATCH_SIZE)):      
+
+            if j < N:   
+
+                masks = r[j]['masks'] #[H, W, N] instance binary masks
+                scores = r[j]['scores']
+                boxes = r[j]['rois']
+
+                if img_pad > 0:
+
+                    if use_semantic:
+                        r[j]['semantic_masks'] = r[j]['semantic_masks'][img_pad : -img_pad, img_pad : -img_pad]
+
+                    masks = masks[img_pad : -img_pad, img_pad : -img_pad]
+                    valid = np.sum(masks, axis = (0, 1)) > 0
+                    masks = masks[:, :, valid]
+
+                    r[j]['masks'] = masks
+                    r[j]['scores'] = r[j]['scores'][valid]
+                    r[j]['class_ids'] = r[j]['class_ids'][valid]
+                    r[j]['rois'] = r[j]['rois'][valid]
+   
+                if dilate:
+
+                    # Dilate masks within boundary box perimeters
+                    box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, masks.shape[:2])
+                    dilated_masks = []
+                    for i in range(masks.shape[-1]):
+                        dilated_mask = scipy.ndimage.morphology.binary_dilation(masks[:, :, i], iterations = n_dilate)
+                        #from visualize import plot_multiple_images, image_with_masks;                   
+                        #plot_multiple_images([image_with_masks(masks[:, :, i], [box_labels == (i + 1)]), np.multiply(box_labels == (i + 1), dilated_mask)])
+                        dilated_masks.append(np.multiply(box_labels == (i + 1), dilated_mask))
+
+                    masks = np.stack(dilated_masks, axis = -1)
+
+                gt_labels = du.maskrcnn_mask_to_labels(gt[j])
+                mask_labels = du.maskrcnn_mask_to_labels(masks)
+                plot_multiple_images([images[j], 
+                                      gt_labels,
+                                      mask_labels,
+                                      image_with_masks(images[j], [gt_labels, mask_labels])],
+                                     ['img'] + ['_'.join(('GT_labels', str(max(gt_labels))))] + ['_'.join(('Predicted_labels', str(max(mask_labels))))] + ['img_with_labels'])
+
+
+    return 
+
+
+
 def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = None, 
                   augment_flips = False, augment_scale = False, 
                   param_dict = {},
@@ -1246,7 +1344,7 @@ def main():
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
        
-        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
+        predict_experiment(train.train_resnet101_flipsrotzoom_minimask56_double_invert_semantic, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
