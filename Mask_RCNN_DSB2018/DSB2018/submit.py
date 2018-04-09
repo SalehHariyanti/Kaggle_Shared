@@ -214,7 +214,10 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
             results_augment.extend(res)
     
     # Concatenate lists of results
-    results_augment = du.concatenate_list_of_dicts(results_augment) if len(results_augment) > 1 else results_augment
+    results_augment = du.concatenate_list_of_dicts(results_augment) 
+
+    if not isinstance(results_augment, list):
+        results_augment = [[results_augment]]
 
     # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
     results = combine_results(results_augment, len(images), threshold, voting_threshold, param_dict, use_nms, use_semantic)
