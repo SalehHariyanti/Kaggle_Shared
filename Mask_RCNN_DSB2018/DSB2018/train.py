@@ -362,7 +362,7 @@ def train_resnet101_flips_alldata_minimask12_double_invert_mosaics_plus_orig(tra
         return configs, dataset
 
 
-def train_resnet101_flipsrot_minimask12_double_invert_semantic(training = True):
+def train_resnet101_flipsrot_minimask12_double_invert_semantic_trainsupp(training = True):
 
     _config = mask_rcnn_config(init_with = 'coco',
                                architecture = 'resnet101',
@@ -379,6 +379,8 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic(training = True):
         # Training dataset
         dataset_train = DSB2018_Dataset(invert_type = 2)
         dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
+        for repeats in range(664//36):
+          dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 0.995 if USER != 'antor' else 1.)
         dataset_train.prepare()
 
         if USER != 'antor':
@@ -639,6 +641,12 @@ def train_resnet101_flipsrots_minimask12_nsbval(training=True):
                                                    'horizontal_flip': True,
                                                    'vertical_flip': True,
                                                    'rots':True})
+   model_name = 'MaskRCNN'
+
+   # Validation dataset
+   dataset_val = DSB2018_Dataset(invert_type = 2)
+   dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.0)
+   dataset_val.prepare()
 
    if training:
        # Training dataset
@@ -647,9 +655,9 @@ def train_resnet101_flipsrots_minimask12_nsbval(training=True):
        dataset_train.prepare()
 
        # Validation dataset
-       dataset_val = DSB2018_Dataset(invert_type = 2)
-       dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.0)
-       dataset_val.prepare()
+       #dataset_val = DSB2018_Dataset(invert_type = 2)
+       #dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.0)
+       #dataset_val.prepare()
 
        # Create model in training mode
        model = modellib.MaskRCNN(mode="training", config=_config,
@@ -667,13 +675,13 @@ def train_resnet101_flipsrots_minimask12_nsbval(training=True):
        dataset = DSB2018_Dataset(invert_type = 2)
        dataset.add_nuclei(test_dir, 'test', shuffle = False)
        dataset.prepare()
-       return _config, dataset
+       return _config, dataset_val, model_name
 
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
-        train_resnet101_flipsrots_minimask12_nsbval()
+        train_resnet101_flipsrot_minimask12_double_invert_semantic_trainsupp()
     else:
         train_resnet101_flipsrots_minimask12_nsbval()
 
