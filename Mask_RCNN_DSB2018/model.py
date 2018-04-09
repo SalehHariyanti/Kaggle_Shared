@@ -3925,57 +3925,23 @@ class XY_ImageDataGenerator(object):
         if y is not None:
             y, original_y_shape, reshape_required = self.reshape_y(y, x.shape, img_row_index, img_col_index, img_channel_index)
 
-        # TODO: MAKE FLAG FOR SAFE/TRANSFORMS
-
-        h, w     = x.shape[img_row_index], x.shape[img_col_index]
-        center = np.array([w /2, h /2])
-        edges  = np.array([[0,0], [w-1, 0], [w-1,h-1], [0, h-1]])
-
-        edges_outside_image = True
-        attempts_left = 100
-
-        while edges_outside_image and attempts_left > 0:
-            if self.height_shift_range:
-                tx = np.random.uniform(-self.height_shift_range, self.height_shift_range) * x.shape[img_row_index]
-            else:
-                tx = 0
-
-            if self.width_shift_range:
-                ty = np.random.uniform(-self.width_shift_range, self.width_shift_range) * x.shape[img_col_index]
-            else:
-                ty = 0
-
-            if self.zoom_range[0] == 1 and self.zoom_range[1] == 1:
-                zx, zy = 1, 1
-            else:
-                zx, zy = np.random.uniform(self.zoom_range[0], self.zoom_range[1], 2)
-
-            zoom_matrix = np.array([[zx, 0, 0],
-                                    [0, zy, 0],
-                                    [0, 0, 1]])
-
-            transformed_edges = edges - center - np.array([tx,ty])
-            transformed_edges = np.dot(transformed_edges, zoom_matrix[:2,:2])
-            transformed_edges += center
-
-            if self.safe_transform:                
-                edges_outside_image = np.any(transformed_edges < 0) or np.any(transformed_edges[:,0] > w - 1) or np.any(transformed_edges[:,1] > h - 1)
-                attempts_left -= 1
-            else:
-                edges_outside_image = False
-                
-        if self.safe_transform:                
-            print(zx, zy, tx, ty, edges, transformed_edges, attempts_left)
-
         # use composition of homographies to generate final transform that needs to be applied
         if self.rotation_range:
             theta = np.pi / 180 * np.random.uniform(-self.rotation_range, self.rotation_range)
         else:
             theta = 0
-
         rotation_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],
                                     [np.sin(theta), np.cos(theta), 0],
                                     [0, 0, 1]])
+        if self.height_shift_range:
+            tx = np.random.uniform(-self.height_shift_range, self.height_shift_range) * x.shape[img_row_index]
+        else:
+            tx = 0
+
+        if self.width_shift_range:
+            ty = np.random.uniform(-self.width_shift_range, self.width_shift_range) * x.shape[img_col_index]
+        else:
+            ty = 0
 
         translation_matrix = np.array([[1, 0, tx],
                                         [0, 1, ty],
@@ -3988,27 +3954,24 @@ class XY_ImageDataGenerator(object):
                                     [0, np.cos(shear), 0],
                                     [0, 0, 1]])
 
-
+        if self.zoom_range[0] == 1 and self.zoom_range[1] == 1:
+            zx, zy = 1, 1
+        else:
+            zx, zy = np.random.uniform(self.zoom_range[0], self.zoom_range[1], 2)
         zoom_matrix = np.array([[zx, 0, 0],
                                 [0, zy, 0],
                                 [0, 0, 1]])
 
-        if not edges_outside_image:
+        transform_matrix = np.dot(np.dot(np.dot(rotation_matrix, translation_matrix), shear_matrix), zoom_matrix)
 
-            transform_matrix = np.dot(np.dot(np.dot(rotation_matrix, translation_matrix), shear_matrix), zoom_matrix)
-
-            transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
-            x = apply_transform(x, transform_matrix, img_channel_index,
-                                fill_mode=self.fill_mode, cval = -2)
-
-            if self.safe_transform:
-                if np.any(x == -2):
-                    show_image(x)
-                    assert False
-            
-            if y is not None:
-                y = [apply_transform(_y, transform_matrix, img_channel_index,
-                                        fill_mode=self.fill_mode, cval = 0) for _y in y]
+        h, w = x.shape[img_row_index], x.shape[img_col_index]
+        transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
+        x = apply_transform(x, transform_matrix, img_channel_index,
+                            fill_mode=self.fill_mode, cval = 0)
+        
+        if y is not None:
+            y = [apply_transform(_y, transform_matrix, img_channel_index,
+                                    fill_mode=self.fill_mode, cval = 0) for _y in y]
 
         if self.channel_shift_range != 0:
             x = random_channel_shift(x, self.channel_shift_range, img_channel_index)
@@ -4048,16 +4011,6 @@ class XY_ImageDataGenerator(object):
         if self.histogram_equalization: 
             if np.random.random() < 0.5: 
                 x = exposure.equalize_hist(x) 
-
-        if self.x_noise > 0:
-            # add gaussian noise to x
-            sigma = np.random.uniform(0.0, self.x_noise)
-            x = iaa.AdditiveGaussianNoise(sigma * (255 if np.max(x) > 1 else 1)).augment_images(x) 
-
-        if self.x_gaussian_blur is not None:
-            if np.random.random() < 0.5:
-                sigma = np.random.uniform(self.x_gaussian_blur[0], self.x_gaussian_blur[1])
-                x = ndimage.filters.gaussian_filter(x, sigma = sigma)
 
         if y is not None and self.y_gaussian_blur is not None:
             if np.random.random() < 0.5:
