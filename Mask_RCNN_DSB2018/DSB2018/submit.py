@@ -214,7 +214,7 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
             results_augment.extend(res)
     
     # Concatenate lists of results
-    results_augment = du.concatenate_list_of_dicts(results_augment)
+    results_augment = du.concatenate_list_of_dicts(results_augment) if len(results_augment) > 1 else results_augment
 
     # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
     results = combine_results(results_augment, len(images), threshold, voting_threshold, param_dict, use_nms, use_semantic)
@@ -1242,62 +1242,15 @@ def main():
         predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic, 'predict_model')
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
-        """
-        predict_experiment(train.train_resnet101_flips_alldata_minimask12_double_invert, 'predict_model', 
-                           augment_flips = True, augment_scale = True, 
-                           nms_threshold = 0.5, voting_threshold = 0.5,
-                           param_dict = {'scales': [0.8, 0.9, 1]},
-                           create_submission = True, save_predictions = False)
-        """
-        """
-        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180407230421_
+       
         predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                           augment_flips = True, augment_scale = True,
-                           nms_threshold = 0.5, voting_threshold = 0.5,
-                           param_dict = {'scales': [0.85, 0.9, 0.95],
-                                         'n_dilate': 1,
-                                         'n_erode': 1},
-                           use_semantic = True, epoch = 25)
-        """
-        """
-        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180407233145_
-                predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                            augment_flips = True, augment_scale = True,
-                            nms_threshold = 0.5, voting_threshold = 0.5,
-                            param_dict = {'scales': [0.85, 0.9, 0.95],
-                                            'n_dilate': 2,
-                                            'n_erode': 2},
-                            use_semantic = True, epoch = 25)
-        """
-        """
-        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408161126_
-        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                    augment_flips = True, augment_scale = True,
-                    nms_threshold = 0.5, voting_threshold = 0.5,
-                    param_dict = {'scales': [0.85, 0.9, 0.95],
-                                    'n_dilate': 2,
-                                    'n_erode': 0},
-                    use_semantic = True, epoch = 25)
-        """
+                        augment_flips = True, augment_scale = True,
+                        nms_threshold = 0.5, voting_threshold = 0.5,
+                        param_dict = {'scales': [0.85, 0.9, 0.95],
+                                        'n_dilate': 1,
+                                        'n_erode': 0},
+                        use_semantic = True, epoch = 25)
 
-        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408201213_
-        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                    augment_flips = True, augment_scale = True,
-                    nms_threshold = 0.5, voting_threshold = 0.5,
-                    param_dict = {'scales': [0.85, 0.9, 0.95],
-                                    'n_dilate': 1,
-                                    'n_erode': 0},
-                    use_semantic = True, epoch = 25)
-
-        #submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408202719_
-        predict_experiment(train.train_resnet101_flipsrotzoom_alldata_minimask12_double_invert_semantic, 'predict_model',
-                    augment_flips = True, augment_scale = True,
-                    nms_threshold = 0.5, voting_threshold = 0.5,
-                    param_dict = {'scales': [0.85, 0.9, 0.95],
-                                    'n_dilate': 1,
-                                    'n_erode': 0},
-                    dilate = True,
-                    use_semantic = False, epoch = 25)
 
 if __name__ == '__main__':
     main()
