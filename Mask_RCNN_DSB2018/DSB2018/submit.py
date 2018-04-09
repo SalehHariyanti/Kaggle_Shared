@@ -1344,13 +1344,13 @@ def main():
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
        
-        predict_experiment(train.train_resnet101_flipsrotzoom_minimask56_double_invert_semantic, 'predict_model',
+        predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic_config2, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
                                         'n_dilate': 1,
                                         'n_erode': 0},
-                        use_semantic = True, epoch = 25)
+                        use_semantic = True, epoch = 21)
 
 
 if __name__ == '__main__':
