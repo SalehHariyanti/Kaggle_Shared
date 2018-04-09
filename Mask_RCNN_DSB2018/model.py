@@ -168,7 +168,7 @@ def resnet_graph(input_image, architecture, stage5=False):
     x = KL.ZeroPadding2D((3, 3))(input_image)
     x = KL.Conv2D(64, (7, 7), strides=(2, 2), name='conv1', use_bias=True)(x)
     x = BatchNorm(axis=3, name='bn_conv1')(x)
-    preC1 = x = KL.Activation('relu')(x)
+    x = KL.Activation('relu')(x)
     C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), padding="same")(x)
     # Stage 2
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1))
@@ -192,7 +192,7 @@ def resnet_graph(input_image, architecture, stage5=False):
         C5 = x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
     else:
         C5 = None
-    return [preC1, C1, C2, C3, C4, C5]
+    return [C1, C2, C3, C4, C5]
 
 
 ############################################################
@@ -973,18 +973,16 @@ def build_fpn_mask_graph(rois, feature_maps,
     return x
 
 
-def build_semantic_mask_graph(C0, preC1, C2, C3, C4, C5, base_num_convolutions = 64, init_method = 'glorot_uniform'):
+def build_semantic_mask_graph(C2, C3, C4, C5, base_num_convolutions = 64, init_method = 'glorot_uniform'):
     """
     Take Resnet outputs and upsample to semantic mask
     """
     # C3 + base_num_convolutions = 64
     # C5 + base_num_convolutions = 256... way too deep!!
 
-    postC0 = up_layer(base_num_convolutions, C0, None, postfix='C0', upsample = False)
-
     up_layers = C3
    
-    for i, opposite_layer in zip(np.arange(3, 0, -1), [C2, preC1, postC0]):
+    for i, opposite_layer in zip(np.arange(3, 0, -1), [C2, None, None]):
         up_layers = up_layer(np.int((2 ** i) * base_num_convolutions / 2), up_layers, opposite_layer)
 
     # Prediction layer
@@ -993,8 +991,7 @@ def build_semantic_mask_graph(C0, preC1, C2, C3, C4, C5, base_num_convolutions =
     return semantic_output
 
 
-def up_layer(num_convolutions, preceeding_layer, opposite_layer = None, dropout_rate = 0.0, use_spatial_dropout = True, filter_size = 3, 
-    padding = 'same', init_method = 'glorot_uniform', apply_batchnorm = True, upsample = True, postfix=''):
+def up_layer(num_convolutions, preceeding_layer, opposite_layer = None, dropout_rate = 0.0, use_spatial_dropout = True, filter_size = 3, padding = 'same', init_method = 'glorot_uniform', apply_batchnorm = True):
 
     # Up_layer consists of upsampling (+ merge) + conv + elu + conv + elu
     # NB: better keep the layer names unique so that we don't overlap with previous saved weights
@@ -1003,23 +1000,22 @@ def up_layer(num_convolutions, preceeding_layer, opposite_layer = None, dropout_
 
     up_layers = preceeding_layer
 
-    if upsample:
-        up_layers = KL.UpSampling2D(size = (2, 2), name = '_'.join(('USamp1', str(num_convolutions), postfix)))(up_layers)
+    up_layers = KL.UpSampling2D(size = (2, 2), name = '_'.join(('USamp1', str(num_convolutions))))(up_layers)
 
     if opposite_layer is not None:
-        up_layers = KL.merge([up_layers, opposite_layer], mode='concat', concat_axis = -1, name = '_'.join(('UMerge1', str(num_convolutions), postfix)))
+        up_layers = KL.merge([up_layers, opposite_layer], mode='concat', concat_axis = -1, name = '_'.join(('UMerge1', str(num_convolutions))))
 
     up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method, 
-                          name = '_'.join(('UConv1', str(num_convolutions), postfix)))(up_layers)
+                          name = '_'.join(('UConv1', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization(name = '_'.join(('UBN1', str(num_convolutions), postfix)))(up_layers) 
-    up_layers = KL.SpatialDropout2D(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions), postfix)))(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions), postfix)))(up_layers)
-    up_layers = fn_relu(name = '_'.join(('UElu1', str(num_convolutions), postfix)))(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN1', str(num_convolutions))))(up_layers) 
+    up_layers = KL.SpatialDropout2D(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers) if use_spatial_dropout else KL.Dropout(dropout_rate, name = '_'.join(('UDr1', str(num_convolutions))))(up_layers)
+    up_layers = fn_relu(name = '_'.join(('UElu1', str(num_convolutions))))(up_layers)
     up_layers = KL.Conv2D(num_convolutions, (filter_size, filter_size), padding = padding, kernel_initializer = init_method,
-                          name = '_'.join(('UConv2', str(num_convolutions), postfix)))(up_layers)
+                          name = '_'.join(('UConv2', str(num_convolutions))))(up_layers)
     if apply_batchnorm:
-        up_layers = KL.BatchNormalization(name = '_'.join(('UBN2', str(num_convolutions), postfix)))(up_layers) 
-    up_layers = fn_relu(name = '_'.join(('UElu2', str(num_convolutions), postfix)))(up_layers)
+        up_layers = KL.BatchNormalization(name = '_'.join(('UBN2', str(num_convolutions))))(up_layers) 
+    up_layers = fn_relu(name = '_'.join(('UElu2', str(num_convolutions))))(up_layers)
        
     return up_layers
 
@@ -2434,7 +2430,7 @@ class MaskRCNN():
         # Bottom-up Layers
         # Returns a list of the last layers of each stage, 5 in total.
         # Don't create the thead (stage 5), so we pick the 4th item in the list.
-        preC1, _, C2, C3, C4, C5 = resnet_graph(input_image, config.architecture, stage5=True)
+        _, C2, C3, C4, C5 = resnet_graph(input_image, config.architecture, stage5=True)
         # Top-down Layers
         # TODO: add assert to varify feature map sizes match what's in config
         P5 = KL.Conv2D(256, (1, 1), name='fpn_c5p5')(C5)
@@ -3257,7 +3253,7 @@ class BespokeMaskRCNN(MaskRCNN):
         # Bottom-up Layers
         # Returns a list of the last layers of each stage, 5 in total.
         # Don't create the thead (stage 5), so we pick the 4th item in the list.
-        preC1, _, C2, C3, C4, C5 = resnet_graph(input_image, config.architecture, stage5=True)
+        _, C2, C3, C4, C5 = resnet_graph(input_image, config.architecture, stage5=True)
         # Top-down Layers
         # TODO: add assert to varify feature map sizes match what's in config
         P5 = KL.Conv2D(256, (1, 1), name='fpn_c5p5')(C5)
@@ -3354,7 +3350,7 @@ class BespokeMaskRCNN(MaskRCNN):
                                               config.MASK_POOL_SIZE,
                                               config.NUM_CLASSES)
 
-            semantic_mask = build_semantic_mask_graph(input_image, preC1, C2, C3, C4, C5)
+            semantic_mask = build_semantic_mask_graph(C2, C3, C4, C5)
 
             # TODO: clean up (use tf.identify if necessary)
             output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
@@ -3408,7 +3404,7 @@ class BespokeMaskRCNN(MaskRCNN):
                                               config.MASK_POOL_SIZE,
                                               config.NUM_CLASSES)
 
-            semantic_mask = build_semantic_mask_graph(input_image, preC1, C2, C3, C4, C5)
+            semantic_mask = build_semantic_mask_graph(C2, C3, C4, C5)
 
             model = KM.Model([input_image, input_image_meta],
                              [detections, mrcnn_class, mrcnn_bbox,
