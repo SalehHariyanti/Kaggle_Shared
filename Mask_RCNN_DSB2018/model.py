@@ -4231,9 +4231,11 @@ class XY_ImageDataGenerator(object):
         return labels
 
     def labels_to_mask(self, lab_img, max_masks, channels_first):
-        mask = [(np.squeeze(lab_img) == i).astype(np.int) for i in range(1, max_masks + 1)]
+        # NB: stack as type uint8 as numpy cannot allocate the array in place, so leaves a 
+        # large memory footprint in cases where max_masks is very large
+        mask = [(np.squeeze(lab_img) == i).astype(np.uint8) for i in range(1, max_masks + 1)]
         mask = np.stack(mask, axis = 0 if channels_first else -1)
-        return mask
+        return mask.astype(np.int)
 
     def fit(self, X,
             augment=False,
