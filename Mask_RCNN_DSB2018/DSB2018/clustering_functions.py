@@ -378,7 +378,7 @@ def infer_maskcount_id(n_masks):
     maskcount_id = np.zeros_like(n_masks)
     maskcount_id[np.logical_and(n_masks > 0, n_masks < 30)] = 1
     maskcount_id[np.logical_and(n_masks >= 30, n_masks < 100)] = 2
-    maskcount_id[np.logical_and(n_masks >= 100)] = 3
+    maskcount_id[n_masks >= 100] = 3
 
     return maskcount_id
 

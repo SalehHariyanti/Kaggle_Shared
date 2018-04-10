@@ -184,12 +184,12 @@ def train_resnet101_semantic_b_w_colour(training = True):
             bw_model = getattr(modellib, model_name)(mode="training", config=bw_config,
                                       model_dir=bw_config.MODEL_DIR)
             bw_model = load_weights(bw_model, bw_config)
-    
+            """
             bw_model.train(dataset_train, dataset_val,
                         learning_rate=bw_config.LEARNING_RATE,
                         epochs=1 if TESTING else 25,
                         layers='all')
-
+            """
             ################
             # colour model 
             ################
