@@ -123,7 +123,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
     """
     b/w and colour models: 
     - semantic included
-    - greyscale + invert_type == 2
+    - greyscale + invert_type == 2 / 0
     - original config, with max_gt_instances = 400
     - fn_load = b/w: load_image_gt_augment; colour: load_image_gt_augment_nsb
     - rpn_nms_threshold 0.9 in training, 0.7 when submitting
@@ -168,55 +168,55 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
 
     if training:
-            ################
-            # b/w model 
-            ################
+        ################
+        # b/w model 
+        ################
 
-            # Training dataset
-            dataset_train = DSB2018_Dataset(**bw_dataset_kwargs)
-            dataset_train.add_nuclei(bw_config.train_data_root, 'train', split_ratio = 1., target_colour_id = np.array([1]))
-            dataset_train.prepare()
+        # Training dataset
+        dataset_train = DSB2018_Dataset(**bw_dataset_kwargs)
+        dataset_train.add_nuclei(bw_config.train_data_root, 'train', split_ratio = 1., target_colour_id = np.array([1]))
+        dataset_train.prepare()
 
-            # Validation dataset
-            dataset_val = None
+        # Validation dataset
+        dataset_val = None
 
-            # Create model in training mode
-            bw_model = getattr(modellib, model_name)(mode="training", config=bw_config,
-                                      model_dir=bw_config.MODEL_DIR)
-            bw_model = load_weights(bw_model, bw_config)
+        # Create model in training mode
+        bw_model = getattr(modellib, model_name)(mode="training", config=bw_config,
+                                    model_dir=bw_config.MODEL_DIR)
+        bw_model = load_weights(bw_model, bw_config)
             
-            bw_model.train(dataset_train, dataset_val,
-                        learning_rate=bw_config.LEARNING_RATE,
-                        epochs=1 if TESTING else 25,
-                        layers='all')
+        bw_model.train(dataset_train, dataset_val,
+                    learning_rate=bw_config.LEARNING_RATE,
+                    epochs=1 if TESTING else 25,
+                    layers='all')
             
-            ################
-            # colour model 
-            ################
+        ################
+        # colour model 
+        ################
 
-            # Training dataset
-            dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
-            dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
-            for repeats in range(135//45):
-                dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
-            dataset_train.prepare()
+        # Training dataset
+        dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
+        dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
+        for repeats in range(135//45):
+            dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
+        dataset_train.prepare()
 
-            # Validation dataset
-            dataset_val = None
+        # Validation dataset
+        dataset_val = None
 
-            # Create model in training mode
-            colour_model = getattr(modellib, model_name)(mode="training", config=colour_config,
-                                      model_dir=colour_config.MODEL_DIR)
-            colour_model = load_weights_from_model(colour_model, bw_model)
+        # Create model in training mode
+        colour_model = getattr(modellib, model_name)(mode="training", config=colour_config,
+                                    model_dir=colour_config.MODEL_DIR)
+        colour_model = load_weights_from_model(colour_model, bw_model)
     
-            # Clear bw_model
-            bw_model = None
+        # Clear bw_model
+        bw_model = None
 
-            colour_model.train(dataset_train, dataset_val,
-                        learning_rate=colour_config.LEARNING_RATE,
-                        epochs=1 if TESTING else 10,
-                        layers='all',
-                        augment_val = True)
+        colour_model.train(dataset_train, dataset_val,
+                    learning_rate=colour_config.LEARNING_RATE,
+                    epochs=1 if TESTING else 10,
+                    layers='all',
+                    augment_val = True)
 
     else:
 
@@ -235,7 +235,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
 
 def main():
-    #train_resnet101_semantic()
+    train_resnet101_semantic()
     train_resnet101_semantic_b_w_colour()
 
 if __name__ == '__main__':

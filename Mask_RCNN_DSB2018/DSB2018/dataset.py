@@ -93,6 +93,8 @@ class DSB2018_Dataset(utils.Dataset):
                     mask_dir = mask_dirs[i],
                     name = image_ids[i],
                     cluster_id = cluster_id[i],
+                    colour_id = colour_id[i],
+                    maskcount_id = maskcount_id[i],
                     mosaic_id = mosaic_id[i],
                     mosaic_position = mosaic_position[i],
                     is_mosaic = False
