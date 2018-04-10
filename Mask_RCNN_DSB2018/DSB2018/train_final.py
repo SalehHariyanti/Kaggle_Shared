@@ -7,10 +7,12 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import base_dir, train_dir, test_dir, ISBI_dir, nsb_dir, GAN_dir, stage2_test_dir
+from settings import base_dir, train_dir, test_dir, supplementary_dir
 import getpass
 USER = getpass.getuser()
 
+
+TESTING  = True
 
 def load_weights(model, _config, init_with_override = None):
 
@@ -53,25 +55,44 @@ def load_weights_from_model(model, weights_model, epoch = None):
     return model
 
 
-def train_resnet101_flipsrot_minimask12_double_invert_semantic(training = True):
+def train_resnet101_semantic(training = True):
+    """
+    Generalised model fit on train/test/supplementary data:
+    - semantic included
+    - greyscale (no inverting)
+    - original config, with max_gt_instances = 400
+    - fn_load = load_image_gt_augment_nsb
+    - dataset add_nuclei() adjustment so that supplementary images are equally represented
+    - rpn_nms_threshold 0.9 in training, 0.7 when submitting
+    """
 
-    _config = mask_rcnn_config(train_data_root = [train_dir] + [test_dir] + [ISBI_dir] + [nsb_dir] + [GAN_dir],
-                               test_data_root = [stage2_test_dir],
-                               init_with = 'coco',
-                               architecture = 'resnet101',
-                               mini_mask_shape = 12,
-                               images_per_gpu = 2, 
-                               identifier = 'double_invert_semantic',
-                               augmentation_dict = {'dim_ordering': 'tf',
-                                                    'horizontal_flip': True,
-                                                    'vertical_flip': True, 
-                                                    'rots' : True })
     model_name = 'BespokeMaskRCNN'
+    dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.DISK }
+
+    # Training config
+    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
+                        test_data_root = [test_dir],
+                        init_with = 'coco',
+                        architecture = 'resnet101',
+                        mini_mask_shape = 12,
+                        max_gt_instances = 400,
+                        rpn_nms_threshold = 0.9,
+                        images_per_gpu = 2, 
+                        identifier = 'semantic',
+                        fn_load = 'load_image_gt_augment_nsb',
+                        augmentation_dict = {'dim_ordering': 'tf',
+                                            'horizontal_flip': True,
+                                            'vertical_flip': True, 
+                                            'rots' : True,
+                                            'gaussian_blur': [-0.2, 0.2]})
 
     if training:
+
         # Training dataset
-        dataset_train = DSB2018_Dataset(invert_type = 2)
-        dataset_train.add_nuclei(_config.train_data_root, 'train', 1.)
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
+        dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1.)
+        for repeats in range(664//36):
+          dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1.)
         dataset_train.prepare()
 
         # Validation dataset
@@ -84,43 +105,67 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic(training = True):
     
         model.train(dataset_train, dataset_val,
                     learning_rate=_config.LEARNING_RATE,
-                    epochs=25,
-                    layers='all')
+                    epochs=1 if TESTING else 50,
+                    layers='all',
+                    augment_val = True)
+
     else:
-        dataset = DSB2018_Dataset(invert_type = 2)
-        dataset.add_nuclei(test_dir, 'stage2_test', shuffle = False)
+
+        _config.RPN_NMS_THRESHOLD = 0.7
+
+        dataset = DSB2018_Dataset(**dataset_kwargs)
+        dataset.add_nuclei(test_dir, 'test', shuffle = False)
         dataset.prepare()
         return _config, dataset, model_name
 
 
-def train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour(training = True):
-
-    bw_config = mask_rcnn_config(train_data_root = [train_dir] + [test_dir] + [ISBI_dir] + [nsb_dir] + [GAN_dir],
-                    test_data_root = [stage2_test_dir],
-                    init_with = 'coco',
-                    architecture = 'resnet101',
-                    mini_mask_shape = 12,
-                    images_per_gpu = 2, 
-                    identifier = 'double_invert_semantic_bw',
-                    augmentation_dict = {'dim_ordering': 'tf',
-                                        'horizontal_flip': True,
-                                        'vertical_flip': True, 
-                                        'rots' : True })
-
-
-    colour_config = mask_rcnn_config(train_data_root = [train_dir] + [test_dir] + [ISBI_dir] + [nsb_dir] + [GAN_dir],
-                        test_data_root = [stage2_test_dir],
-                        init_with = 'coco',
-                        architecture = 'resnet101',
-                        mini_mask_shape = 12,
-                        images_per_gpu = 2, 
-                        identifier = 'double_invert_semantic_colour',
-                        augmentation_dict = {'dim_ordering': 'tf',
-                                            'horizontal_flip': True,
-                                            'vertical_flip': True, 
-                                            'rots' : True })
+def train_resnet101_semantic_b_w_colour(training = True):
+    """
+    b/w and colour models: 
+    - semantic included
+    - greyscale + invert_type == 2
+    - original config, with max_gt_instances = 400
+    - fn_load = b/w: load_image_gt_augment; colour: load_image_gt_augment_nsb
+    - rpn_nms_threshold 0.9 in training, 0.7 when submitting
+    """
 
     model_name = 'BespokeMaskRCNN'
+    bw_dataset_kwargs = { 'invert_type' : 2 , 'cache' : DSB2018_Dataset.Cache.DISK }
+    colour_dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.DISK }
+
+
+    bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
+                            test_data_root = [test_dir],
+                            init_with = 'coco',
+                            architecture = 'resnet101',
+                            mini_mask_shape = 12,
+                            max_gt_instances = 400,
+                            rpn_nms_threshold = 0.9,
+                            images_per_gpu = 2, 
+                            identifier = 'semantic_bw',
+                            augmentation_dict = {'dim_ordering': 'tf',
+                                                'horizontal_flip': True,
+                                                'vertical_flip': True, 
+                                                'rots' : True,
+                                                'gaussian_blur': [-0.2, 0.2]})
+
+
+    colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
+                            test_data_root = [test_dir],
+                            init_with = 'coco',
+                            architecture = 'resnet101',
+                            mini_mask_shape = 12,
+                            max_gt_instances = 400,
+                            rpn_nms_threshold = 0.9,
+                            images_per_gpu = 2, 
+                            identifier = 'semantic_colour',
+                            fn_load = 'load_image_gt_augment_nsb',
+                            augmentation_dict = {'dim_ordering': 'tf',
+                                                'horizontal_flip': True,
+                                                'vertical_flip': True, 
+                                                'rots' : True,
+                                                'gaussian_blur': [-0.2, 0.2]})
+
 
     if training:
             ################
@@ -128,8 +173,8 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour(traini
             ################
 
             # Training dataset
-            dataset_train = DSB2018_Dataset(invert_type = 2)
-            dataset_train.add_nuclei(_config.train_data_root, 'train', split_ratio = 1., target_colour_id = np.array([1]))
+            dataset_train = DSB2018_Dataset(**bw_dataset_kwargs)
+            dataset_train.add_nuclei(bw_config.train_data_root, 'train', split_ratio = 1., target_cluster_id = np.array([1]))
             dataset_train.prepare()
 
             # Validation dataset
@@ -141,8 +186,8 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour(traini
             bw_model = load_weights(bw_model, bw_config)
     
             bw_model.train(dataset_train, dataset_val,
-                        learning_rate=_config.LEARNING_RATE,
-                        epochs=25,
+                        learning_rate=bw_config.LEARNING_RATE,
+                        epochs=1 if TESTING else 25,
                         layers='all')
 
             ################
@@ -150,8 +195,10 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour(traini
             ################
 
             # Training dataset
-            dataset_train = DSB2018_Dataset(invert_type = 2)
-            dataset_train.add_nuclei(colour_config.train_data_root, 'train', split_ratio = 1., target_colour_id = np.array([2]))
+            dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
+            dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_cluster_id = np.array([2]))
+            for repeats in range(135//45):
+                dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1., target_cluster_id = np.array([2]))
             dataset_train.prepare()
 
             # Validation dataset
@@ -166,26 +213,30 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour(traini
             bw_model = None
 
             colour_model.train(dataset_train, dataset_val,
-                        learning_rate=_config.LEARNING_RATE,
-                        epochs=10,
-                        layers='all')
+                        learning_rate=colour_config.LEARNING_RATE,
+                        epochs=1 if TESTING else 15,
+                        layers='all',
+                        augment_val = True)
 
     else:
 
-        bw_dataset = DSB2018_Dataset(invert_type = 2)
-        bw_dataset.add_nuclei(stage2_test_dir, 'stage2_test', shuffle = False, target_colour_id = np.array([1]))
+        bw_dataset = DSB2018_Dataset(**bw_dataset_kwargs)
+        bw_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_cluster_id = np.array([1]))
         bw_dataset.prepare()
 
-        colour_dataset = DSB2018_Dataset(invert_type = 2)
-        colour_dataset.add_nuclei(stage2_test_dir, 'stage2_test', shuffle = False, target_colour_id = np.array([2]))
+        colour_dataset = DSB2018_Dataset(**colour_dataset_kwargs)
+        colour_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_cluster_id = np.array([2]))
         colour_dataset.prepare()
+
+        bw_config.RPN_NMS_THRESHOLD = 0.7
+        colour_config.RPN_NMS_THRESHOLD = 0.7
 
         return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
 
 
 def main():
-    train_resnet101_flipsrot_minimask12_double_invert_semantic()
-    train_resnet101_flipsrot_minimask12_double_invert_semantic_b_w_colour()
+    #train_resnet101_semantic()
+    train_resnet101_semantic_b_w_colour()
 
 if __name__ == '__main__':
     main()

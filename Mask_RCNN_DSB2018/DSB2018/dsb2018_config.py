@@ -42,6 +42,7 @@ class mask_rcnn_config(config.Config):
                  mini_mask_shape = 56,
                  mask_shape = 28,
                  detection_nms_threshold = 0.3,
+                 rpn_nms_threshold = 0.7,
                  steps = 600,
                  val_steps = 70,
                  train_data_root = train_dir,
@@ -144,7 +145,7 @@ class mask_rcnn_config(config.Config):
 
         # Non-max suppression threshold to filter RPN proposals.
         # You can reduce(increase?) this during training to generate more propsals.
-        self.RPN_NMS_THRESHOLD = 0.7
+        self.RPN_NMS_THRESHOLD = rpn_nms_threshold
 
         # Maximum number of ground truth instances to use in one image
         self.MAX_GT_INSTANCES = max_gt_instances

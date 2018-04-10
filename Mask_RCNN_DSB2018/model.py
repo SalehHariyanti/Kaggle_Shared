@@ -2216,7 +2216,7 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
 
 def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
                    batch_size=1, detection_targets=False, show_image_each = 0, 
-                   include_semantic = False, balance_by_cluster_id = False):
+                   include_semantic = False, balance_by_cluster_id = False, str_cluster_id = 'cluster_id'):
     """A generator that returns images and corresponding target class ids,
     bounding box deltas, and masks.
 
@@ -2264,7 +2264,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     if balance_by_cluster_id:
         cluster_ids_to_image_id = defaultdict(list)
         for image_id in dataset.image_ids:
-            cluster_id = dataset.image_info[image_id]['cluster_id']
+            cluster_id = dataset.image_info[image_id][str_cluster_id]
             cluster_ids_to_image_id[cluster_id].append(image_id)
         unique_cluster_ids = tuple(set(cluster_ids_to_image_id.keys()))
 
@@ -2937,7 +2937,7 @@ class MaskRCNN():
             "*epoch*", "{epoch:04d}")
 
     def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, 
-        augment_val = False, show_image_each = 0, balance_by_cluster_id = False):
+        augment_val = False, show_image_each = 0, balance_by_cluster_id = False, str_cluster_id = 'cluster_id'):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -2978,7 +2978,7 @@ class MaskRCNN():
         # Data generators
         train_generator = data_generator(train_dataset, self.config, shuffle=True,
                                          batch_size=self.config.BATCH_SIZE, augment = augment_train, 
-                                         show_image_each = show_image_each, balance_by_cluster_id = balance_by_cluster_id)
+                                         show_image_each = show_image_each, balance_by_cluster_id = balance_by_cluster_id, str_cluster_id = str_cluster_id)
         if val_dataset is not None:
             val_generator = data_generator(val_dataset, self.config, shuffle=True,
                                        batch_size=self.config.BATCH_SIZE,

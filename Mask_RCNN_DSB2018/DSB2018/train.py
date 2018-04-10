@@ -635,7 +635,7 @@ def trainsupp_resnet101_flipsrot_minimask12_double_invert_semantic_config2(train
 def trainsupp_resnet50_flipsrot_minimask12_double_invert_semantic_config2(training = True):
 
     model_name = 'BespokeMaskRCNN'
-    dataset_kwargs = { 'invert_type' : 2 , 'cache' : DSB2018_Dataset.Cache.NONE }
+    dataset_kwargs = { 'invert_type' : 2 , 'cache' : DSB2018_Dataset.Cache.DISK }
 
     if training:
         _config = mask_rcnn_config2(init_with = 'coco',
@@ -695,7 +695,7 @@ def trainsupp_resnet50_flipsrot_minimask12_double_invert_semantic_config2(traini
 def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2(training = True):
 
     model_name = 'BespokeMaskRCNN'
-    dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.NONE }
+    dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.DISK }
 
     if training:
         _config = mask_rcnn_config2(init_with = 'coco',
@@ -741,6 +741,7 @@ def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2(training 
                             images_per_gpu = 2, 
                             rpn_nms_threshold = 0.7,
                             identifier = 'no_invert_semantic',
+                            fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
@@ -748,7 +749,7 @@ def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2(training 
                                                 'gaussian_blur': [-0.2, 0.2]})
 
         dataset = DSB2018_Dataset(**dataset_kwargs)
-        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.add_nuclei(supplementary_dir, 'test', shuffle = False)
         dataset.prepare()
         return _config, dataset, model_name
 
@@ -864,7 +865,7 @@ def main():
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
         train_resnet101_flipsrot_minimask12_double_invert_semantic_config2()
     else:
-        train_resnet101_flipsrot_minimask12_no_invert_semantic_config2()
+        trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2()
 
 if __name__ == '__main__':
     main()

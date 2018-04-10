@@ -15,8 +15,7 @@ data_dir = os.path.join(base_dir, 'data')
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test') 
 supplementary_data_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
-                          os.path.join(base_dir, 'train_external', 'nsb'),
-                          os.path.join(base_dir, 'train_external', 'nsb_crop')]
+                          os.path.join(base_dir, 'train_external', 'nsb')]
 
 # Global constants.
 IMG_DIR_NAME = 'images'   # Folder name including the image
@@ -76,6 +75,16 @@ def load_raw_data(img_paths, image_size=(256, 256), space = 'bgr'):
         data.append(img)
     data = np.array(data)
     print('Data loaded')
+    return data
+
+def load_n_masks(img_paths):
+    """LOAD NUMBER OF MASKS."""
+    data = []
+    for i, filename in tqdm.tqdm(enumerate(img_paths), total=len(img_paths)):
+        mask_path = os.path.split(os.path.split(filename)[0])[0]
+        masks = len(os.listdir(os.path.join(mask_path, MASK_DIR_NAME))) if os.path.exists(os.path.join(mask_path, MASK_DIR_NAME)) else -1
+        data.append(masks)
+    data = np.array(data)
     return data
 
 def get_domimant_colors(img, top_colors=2):
@@ -362,7 +371,18 @@ def infer_target_id(imgs):
 
     return colour_id
 
-def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
+def infer_maskcount_id(n_masks):
+    """
+    Returns id based on number of masks an image has
+    """
+    maskcount_id = np.zeros_like(n_masks)
+    maskcount_id[np.logical_and(n_masks > 0, n_masks < 30)] = 1
+    maskcount_id[np.logical_and(n_masks >= 30, n_masks < 100)] = 2
+    maskcount_id[np.logical_and(n_masks >= 100)] = 3
+
+    return maskcount_id
+
+def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None, run_hsv_clustering = False):
 
     if source_dirs is None:
         source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
@@ -372,7 +392,10 @@ def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
 
     # Read images from files and resize them.
     x_all = load_raw_data(np.array(all_df['image_path']), image_size = None)
+    x_n_masks = load_n_masks(np.array(all_df['image_path']))
     
+    all_df['n_masks'] = x_n_masks
+
     # code which makes csv with clusters and mosaic ids for test data
     imgs, data_frame = make_mosaic(x_all, return_connectivity = False, plot_images = False, external_df = all_df)
 
@@ -382,8 +405,16 @@ def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None):
     else:
         all_df_with_extra = all_df 
     
-    kmeans_cluster, dbscan_cluster = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)
-    all_df['cluster_id'], all_df['alt_cluster_id'] = kmeans_cluster[:len(all_df)], dbscan_cluster[:len(all_df)]
+    if run_hsv_clustering:
+        kmeans_cluster, dbscan_cluster = cluster_images_by_hsv(np.array(all_df_with_extra['image_path']), n_clusters=4, top_colors=1)
+        all_df['cluster_id'], all_df['alt_cluster_id'] = kmeans_cluster[:len(all_df)], dbscan_cluster[:len(all_df)]
+    else:
+        all_df['cluster_id'] = np.zeros((all_df.shape[0],))
+        all_df['alt_cluster_id'] = np.zeros((all_df.shape[0],))
+
+    all_df['colour_id'] = infer_target_id(np.array([resize_img(x, 256, 256) for x in x_all]))
+
+    all_df['maskcount_id'] = infer_maskcount_id(all_df['n_masks'])
 
     all_df.to_csv(save_filename, index = False)
 

@@ -781,7 +781,7 @@ def predict_gt_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                     images.append(np.stack([np.pad(img[:, :, i], img_pad, mode = 'reflect') for i in range(img.shape[-1])], axis = -1))
                 else:
                     images.append(dataset.load_image(dataset.image_ids[idx]))
-                    gt.append(dataset.load_mask(dataset.image_ids[idx]))
+                    gt.append(dataset.load_mask(dataset.image_ids[idx])[0])
             else:
                 images.append(images[-1])
                 gt.append(gt[-1])
@@ -834,10 +834,13 @@ def predict_gt_model(_config, dataset, model_name='MaskRCNN', epoch = None,
                 gt_labels = du.maskrcnn_mask_to_labels(gt[j])
                 mask_labels = du.maskrcnn_mask_to_labels(masks)
                 plot_multiple_images([images[j], 
-                                      gt_labels,
-                                      mask_labels,
-                                      image_with_masks(images[j], [gt_labels, mask_labels])],
-                                     ['img'] + ['_'.join(('GT_labels', str(max(gt_labels))))] + ['_'.join(('Predicted_labels', str(max(mask_labels))))] + ['img_with_labels'])
+                                    gt_labels,
+                                    mask_labels,
+                                    image_with_masks(images[j], [gt_labels, mask_labels]),
+                                    np.multiply(mask_labels, np.logical_and(mask_labels > 0, gt_labels > 0)),
+                                    np.multiply(mask_labels, np.logical_and(mask_labels > 0, gt_labels == 0))],
+                                    ['img'] + ['_'.join(('GT_labels', str(np.max(gt_labels))))] + ['_'.join(('Predicted_labels', str(np.max(mask_labels))))] + ['img_with_labels']+ ['predicted_correct'] + ['predicted_incorrect'],
+                                    nrows = 2, ncols = 3)
 
 
     return 
@@ -1018,7 +1021,7 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                 img_results = du.concatenate_list_of_dicts([r[j] for r in res])
 
                 # Reduce via voting
-                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = False, n_votes = len(models))
+                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
 
                 img_name = datasets[0].image_info[idx]['name']
         
@@ -1344,13 +1347,7 @@ def main():
     else:
         #predict_experiment(train.train_resnet101_flips_all_rots_data_minimask12_mosaics_nsbval, 'predict_model', create_submission = False, save_predictions = True)
        
-        predict_experiment(train.train_resnet101_flipsrot_minimask12_double_invert_semantic_config2, 'predict_model',
-                        augment_flips = True, augment_scale = True,
-                        nms_threshold = 0.5, voting_threshold = 0.5,
-                        param_dict = {'scales': [0.85, 0.9, 0.95],
-                                        'n_dilate': 1,
-                                        'n_erode': 0},
-                        use_semantic = True, epoch = 21)
+        predict_experiment(train.trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2, 'predict_gt_model')
 
 
 if __name__ == '__main__':

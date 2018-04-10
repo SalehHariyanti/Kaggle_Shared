@@ -35,7 +35,7 @@ class DSB2018_Dataset(utils.Dataset):
         self.to_grayscale = to_grayscale
         self.cache = cache
 
-    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_cluster_id = None, use_mosaics=False):
+    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_cluster_id = None, target_maskcount_id = None, target_colour_id = None, use_mosaics=False):
         # Add classes
         self.add_class("nuclei", 1, "nuclei") # source, id, name. id = 0s is BG
 
@@ -72,14 +72,17 @@ class DSB2018_Dataset(utils.Dataset):
             image_ids = [os.path.split(name)[-1] for name in image_names]
 
             # Get ids
-            cluster_id, mosaic_id, mosaic_position = get_ids(image_ids)
+            cluster_id, colour_id, maskcount_id, mosaic_id, mosaic_position = get_ids(image_ids)
 
-            # Strip down to target colours only
+            # Strip down to targets only
+            idx = np.ones(cluster_id.shape, dtype = np.bool)
             if target_cluster_id is not None:
-                idx = du.ismember(cluster_id, target_cluster_id, index_requested = False)
-                idx = np.argwhere(idx).reshape(-1, )
-            else:
-                idx = np.arange(len(image_names))
+                idx = np.logical_and(idx, du.ismember(cluster_id, target_cluster_id, index_requested = False))        
+            if target_colour_id is not None:
+                idx = np.logical_and(idx, du.ismember(colour_id, target_colour_id, index_requested = False))        
+            if target_maskcount_id is not None:
+                idx = np.logical_and(idx, du.ismember(maskcount_id, target_maskcount_id, index_requested = False))   
+            idx = np.argwhere(idx).reshape(-1,)
 
             # Add images
             for i in idx:
@@ -276,6 +279,8 @@ def get_ids(file_id):
     mosaic_idx = np.array(mosaic_df['mosaic_idx'])
     mosaic_position = np.array(mosaic_df['mosaic_position'])
     cluster_id = np.array(mosaic_df['cluster_id'])
+    colour_id = np.array(mosaic_df['colour_id'])
+    maskcount_id = np.array(mosaic_df['maskcount_id'])
 
     file_id = np.array(file_id)
 
@@ -285,17 +290,23 @@ def get_ids(file_id):
     # In cases where no mosaic id assign it a single value.
     mosaic_id = np.zeros(file_id.shape, dtype = np.int)
     mosaic_pos = np.empty(file_id.shape, dtype = object)
-    target = np.zeros(file_id.shape, dtype = np.int)
+    cluster = np.zeros(file_id.shape, dtype = np.int)
+    colour = np.zeros(file_id.shape, dtype = np.int)
+    maskcount = np.zeros(file_id.shape, dtype = np.int)
 
     mosaic_id[A] = mosaic_idx[B[A]]
-    target[A] = cluster_id[B[A]]
+    colour[A] = colour_id[B[A]] 
+    cluster[A] = cluster_id[B[A]]
+    maskcount[A] = maskcount_id[B[A]]
     mosaic_pos[A] = mosaic_position[B[A]]
 
     if np.any(np.logical_not(A)):
         mosaic_id[np.logical_not(A)] = np.cumsum(np.ones((sum(np.logical_not(A)),))) + mosaic_id[A].max()
-        target[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
+        cluster[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
+        colour[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
+        maskcount[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
 
-    return target, mosaic_id, mosaic_pos
+    return cluster, colour, maskcount, mosaic_id, mosaic_pos
 
 def main():
     return
