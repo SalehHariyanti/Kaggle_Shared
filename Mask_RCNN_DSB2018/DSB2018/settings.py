@@ -34,6 +34,9 @@ test_mosaics_dir  = os.path.join(base_dir, "test_mosaics")
 
 supplementary_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                      os.path.join(base_dir, 'train_external', 'nsb')]
+
+gan_dir = os.path.join(base_dir, 'train_external', 'GAN')
+
 """
 group_id_file = os.path.join(data_dir, 'data_ids.csv')
 if not os.path.exists(group_id_file):

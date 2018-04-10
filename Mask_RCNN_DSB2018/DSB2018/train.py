@@ -7,7 +7,7 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import base_dir, train_dir, test_dir, supplementary_dir
+from settings import base_dir, train_dir, test_dir, supplementary_dir, gan_dir
 import getpass
 USER = getpass.getuser()
 
@@ -258,7 +258,7 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
                             rpn_nms_threshold = 0.9,
                             images_per_gpu = 2, 
                             identifier = 'semantic_bw',
-                            fn_load = 'load_gt_augment_nsb',
+                            fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
@@ -352,10 +352,76 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
         return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
 
 
+def train_resnet101_semantic_gan(training = True):
+    """
+    Generalised model fit on train/test/supplementary data:
+    - semantic included
+    - greyscale (no inverting)
+    - original config, with max_gt_instances = 400
+    - fn_load = load_image_gt_augment_nsb
+    - dataset add_nuclei() adjustment so that supplementary images are equally represented
+    - rpn_nms_threshold 0.9 in training, 0.7 when submitting
+    """
+
+    model_name = 'BespokeMaskRCNN'
+    dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.DISK }
+
+    # Training config
+    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + [gan_dir],
+                        test_data_root = [test_dir],
+                        init_with = 'coco',
+                        architecture = 'resnet101',
+                        mini_mask_shape = 12,
+                        max_gt_instances = 400,
+                        rpn_nms_threshold = 0.9,
+                        images_per_gpu = 2, 
+                        identifier = 'semantic_gan',
+                        fn_load = 'load_image_gt_augment_nsb',
+                        augmentation_dict = {'dim_ordering': 'tf',
+                                            'horizontal_flip': True,
+                                            'vertical_flip': True, 
+                                            'rots' : True,
+                                            'gaussian_blur': [-0.2, 0.2]})
+
+    if training:
+
+        # Training dataset
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
+        dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1.)
+        dataset_train.add_nuclei(gan_dir, 'train', split_ratio = 1.)
+        for repeats in range((664 + 200)//36):
+          dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1.)
+        dataset_train.prepare()
+
+        # Validation dataset
+        dataset_val = None
+
+        # Create model in training mode
+        model = getattr(modellib, model_name)(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=1 if TESTING else 50,
+                    layers='all',
+                    augment_val = True)
+
+    else:
+
+        _config.RPN_NMS_THRESHOLD = 0.7
+
+        dataset = DSB2018_Dataset(**dataset_kwargs)
+        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.prepare()
+        return _config, dataset, model_name
+
+
 def main():
     #train_resnet101_semantic()
     #train_resnet101_semantic_b_w_colour()
-    train_resnet101_semantic_b_w_colour_maskcount_balanced()
+    #train_resnet101_semantic_b_w_colour_maskcount_balanced()
+    train_resnet101_semantic_gan()
 
 if __name__ == '__main__':
     main()
