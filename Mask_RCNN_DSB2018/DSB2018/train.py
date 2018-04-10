@@ -869,7 +869,7 @@ def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_maskcount_balance
                         train_data_root = [train_dir] + supplementary_dir,
                         val_data_root = [train_dir] + supplementary_dir,
                         mini_mask_shape = 12,
-                        images_per_gpu = 2, 
+                        images_per_gpu = 1, 
                         rpn_nms_threshold = 0.9,
                         identifier = 'no_invert_semantic',
                         fn_load = 'load_image_gt_augment_nsb',
