@@ -859,11 +859,64 @@ def train_resnet101_flipsrot_minimask12_double_invert_semantic_config2(training 
         return _config, dataset, model_name
 
 
+def trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_maskcount_balance(training = True):
+
+    model_name = 'BespokeMaskRCNN'
+    dataset_kwargs = { 'invert_type' : 0 , 'cache' : DSB2018_Dataset.Cache.NONE }
+
+    _config = mask_rcnn_config(init_with = 'coco',
+                        architecture = 'resnet101',
+                        train_data_root = [train_dir] + supplementary_dir,
+                        val_data_root = [train_dir] + supplementary_dir,
+                        mini_mask_shape = 12,
+                        images_per_gpu = 2, 
+                        rpn_nms_threshold = 0.9,
+                        identifier = 'no_invert_semantic',
+                        fn_load = 'load_image_gt_augment_nsb',
+                        augmentation_dict = {'dim_ordering': 'tf',
+                                            'horizontal_flip': True,
+                                            'vertical_flip': True, 
+                                            'rots' : True,
+                                            'gaussian_blur': [-0.2, 0.2]})
+    if training:
+
+        # Training dataset
+        dataset_train = DSB2018_Dataset(**dataset_kwargs)
+        dataset_train.add_nuclei(train_dir, 'train', split_ratio = 0.995)
+        for repeats in range(664//36):
+          dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 0.995)
+        dataset_train.prepare()
+
+        # Validation dataset
+        dataset_val = DSB2018_Dataset(**dataset_kwargs)
+        dataset_val.add_nuclei(_config.val_data_root, 'val', split_ratio = 0.995)
+        dataset_val.prepare()
+
+        # Create model in training mode
+        model = getattr(modellib, model_name)(mode="training", config=_config,
+                                  model_dir=_config.MODEL_DIR)
+        model = load_weights(model, _config)
+    
+        model.train(dataset_train, None if USER == 'antor' else dataset_val,
+                    learning_rate=_config.LEARNING_RATE,
+                    epochs=100,
+                    layers='all',
+                    augment_val = True,
+                    balance_by_cluster_id = True, str_cluster_id = 'maskcount_id')
+    else:
+        _config.RPN_NMS_THRESHOLD = 0.7 
+
+        dataset = DSB2018_Dataset(**dataset_kwargs)
+        dataset.add_nuclei(supplementary_dir, 'test', shuffle = False)
+        dataset.prepare()
+        return _config, dataset, model_name
+
+
 def main():
     #train_resnet101_flips_alldata_minimask12_double_invert()
     if USER == 'antor':
         #train_resnet101_flipsrot_minimask12_double_invert_semantic()
-        train_resnet101_flipsrot_minimask12_double_invert_semantic_config2()
+        trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_maskcount_balance()
     else:
         trainsupp_resnet101_flipsrot_minimask12_no_invert_semantic_config2()
 

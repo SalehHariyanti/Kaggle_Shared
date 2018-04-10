@@ -157,7 +157,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
                             mini_mask_shape = 12,
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
-                            images_per_gpu = 2, 
+                            images_per_gpu = 1, 
                             identifier = 'semantic_colour',
                             fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
@@ -214,7 +214,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
             colour_model.train(dataset_train, dataset_val,
                         learning_rate=colour_config.LEARNING_RATE,
-                        epochs=1 if TESTING else 15,
+                        epochs=1 if TESTING else 10,
                         layers='all',
                         augment_val = True)
 
