@@ -12,7 +12,7 @@ import getpass
 USER = getpass.getuser()
 
 
-TESTING  = True
+TESTING  = False
 
 def load_weights(model, _config, init_with_override = None):
 
