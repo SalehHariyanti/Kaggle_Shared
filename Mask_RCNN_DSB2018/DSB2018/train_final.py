@@ -174,7 +174,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
             # Training dataset
             dataset_train = DSB2018_Dataset(**bw_dataset_kwargs)
-            dataset_train.add_nuclei(bw_config.train_data_root, 'train', split_ratio = 1., target_cluster_id = np.array([1]))
+            dataset_train.add_nuclei(bw_config.train_data_root, 'train', split_ratio = 1., target_colour_id = np.array([1]))
             dataset_train.prepare()
 
             # Validation dataset
@@ -196,9 +196,9 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
             # Training dataset
             dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
-            dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_cluster_id = np.array([2]))
+            dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
             for repeats in range(135//45):
-                dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1., target_cluster_id = np.array([2]))
+                dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
             dataset_train.prepare()
 
             # Validation dataset
@@ -221,11 +221,11 @@ def train_resnet101_semantic_b_w_colour(training = True):
     else:
 
         bw_dataset = DSB2018_Dataset(**bw_dataset_kwargs)
-        bw_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_cluster_id = np.array([1]))
+        bw_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([1]))
         bw_dataset.prepare()
 
         colour_dataset = DSB2018_Dataset(**colour_dataset_kwargs)
-        colour_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_cluster_id = np.array([2]))
+        colour_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([2]))
         colour_dataset.prepare()
 
         bw_config.RPN_NMS_THRESHOLD = 0.7
