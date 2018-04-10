@@ -3665,7 +3665,7 @@ class BespokeMaskRCNN(MaskRCNN):
 
         return mask
 
-    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, augment_val = False, show_image_each = 0):
+    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers, augment_train = True, augment_val = False, show_image_each = 0, balance_by_cluster_id = False, str_cluster_id = 'cluster_id'):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -3706,7 +3706,8 @@ class BespokeMaskRCNN(MaskRCNN):
         # Data generators
         train_generator = data_generator(train_dataset, self.config, shuffle=True,
                                          batch_size=self.config.BATCH_SIZE, augment = augment_train, 
-                                         show_image_each = show_image_each, include_semantic = True)
+                                         show_image_each = show_image_each, include_semantic = True,
+                                         balance_by_cluster_id = balance_by_cluster_id, str_cluster_id = str_cluster_id)
         if val_dataset is not None:
             val_generator = data_generator(val_dataset, self.config, shuffle=True,
                                        batch_size=self.config.BATCH_SIZE,
