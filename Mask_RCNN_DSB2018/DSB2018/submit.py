@@ -547,16 +547,16 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 for _model, c, img in zip(model, _config, _images):
 
                     # Artifically expand the batch if required by batch_size
-                    batch_img = img if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
+                    batch_img = [img] if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
 
                     # Run detection
                     if len(list_fn_apply) > 0:
-                        prediction = maskrcnn_detect_augmentations(c, _model, [batch_img], list_fn_apply, 
+                        prediction = maskrcnn_detect_augmentations(c, _model, batch_img, list_fn_apply, 
                                                             threshold = nms_threshold, voting_threshold = voting_threshold, 
                                                             param_dict = param_dict, 
                                                             use_nms = False, use_semantic = use_semantic)
                     else:
-                        prediction = maskrcnn_detect(c, _model, [batch_img], param_dict = param_dict, use_semantic = use_semantic)
+                        prediction = maskrcnn_detect(c, _model, batch_img, param_dict = param_dict, use_semantic = use_semantic)
 
                     # If you artificially expanded the batch subselect what you need
                     if c.BATCH_SIZE > 1:
