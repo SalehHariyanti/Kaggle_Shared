@@ -594,9 +594,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 EncodedPixels += EncodedPixels_batch
 
     if create_submission:
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
-                                                    '_'.join([_config.NAME for _config in configs]), 
-                                                    str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
 
 
 def merge_model_info(datasets):
