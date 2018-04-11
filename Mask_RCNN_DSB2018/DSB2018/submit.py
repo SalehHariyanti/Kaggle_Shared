@@ -585,9 +585,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 img_results = du.concatenate_list_of_dicts([r[j] for r in res])
 
                 # Reduce via voting
-                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
+                img_results = reduce_via_voting(img_results, nms_threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
 
-                img_name = datasets[0].image_info[idx]['name']
+                img_name = os.path.splitext(os.path.split(batch_img_paths[j])[-1])[0]
         
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
                 ImageId += ImageId_batch
