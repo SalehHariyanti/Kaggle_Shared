@@ -7,7 +7,7 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import base_dir, train_dir, test_dir, supplementary_dir, gan_dir
+from settings import base_dir, train_dir, test_dir, supplementary_dir
 import getpass
 USER = getpass.getuser()
 
