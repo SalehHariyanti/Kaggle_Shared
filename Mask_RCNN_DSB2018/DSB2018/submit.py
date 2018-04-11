@@ -522,7 +522,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
 
         batch_img_paths = img_paths[i : (i + batch_size)]
         if len(batch_img_paths) != batch_size:
-            batch_img_paths.append(batch_img_paths[:(i + batch_size - len(img_paths))])
+            batch_img_paths = np.append(batch_img_paths, batch_img_paths[:(i + batch_size - len(img_paths))])
 
         images, images_idx = gather_images(datasets, batch_img_paths)
 
