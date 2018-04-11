@@ -119,7 +119,7 @@ def train_resnet101_semantic(training = True):
         return _config, dataset, model_name
 
 
-def train_resnet101_semantic_b_w_colour(training = True):
+def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', id_suffix = None):
     """
     b/w and colour models: 
     - semantic included
@@ -137,12 +137,12 @@ def train_resnet101_semantic_b_w_colour(training = True):
     bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
                             test_data_root = [test_dir],
                             init_with = 'coco',
-                            architecture = 'resnet101',
+                            architecture = architecture,
                             mini_mask_shape = 12,
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
                             images_per_gpu = 2, 
-                            identifier = 'semantic_bw',
+                            identifier = 'semantic_bw' if id_suffix is None else '_'.join(('semantic_bw', id_suffix)),
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
                                                 'vertical_flip': True, 
@@ -153,12 +153,12 @@ def train_resnet101_semantic_b_w_colour(training = True):
     colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
                             test_data_root = [test_dir],
                             init_with = 'coco',
-                            architecture = 'resnet101',
+                            architecture = architecture,
                             mini_mask_shape = 12,
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
                             images_per_gpu = 1, 
-                            identifier = 'semantic_colour',
+                            identifier = 'semantic_colour' if id_suffix is None else '_'.join(('semantic_colour', id_suffix)),
                             fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
@@ -231,7 +231,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
         bw_config.RPN_NMS_THRESHOLD = 0.7
         colour_config.RPN_NMS_THRESHOLD = 0.7
 
-        return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
+        return [bw_config, colour_config], [bw_dataset, colour_dataset], [model_name, model_name]
 
 
 def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
@@ -257,7 +257,7 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
                             images_per_gpu = 2, 
-                            identifier = 'semantic_bw',
+                            identifier = 'semantic_bw_bal',
                             fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
@@ -274,7 +274,7 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
                             images_per_gpu = 1, 
-                            identifier = 'semantic_colour',
+                            identifier = 'semantic_colour_bal',
                             fn_load = 'load_image_gt_augment_nsb',
                             augmentation_dict = {'dim_ordering': 'tf',
                                                 'horizontal_flip': True,
@@ -349,7 +349,7 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
         bw_config.RPN_NMS_THRESHOLD = 0.7
         colour_config.RPN_NMS_THRESHOLD = 0.7
 
-        return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
+        return [bw_config, colour_config], [bw_dataset, colour_dataset], [model_name, model_name]
 
 
 def train_resnet101_semantic_gan(training = True):
@@ -416,12 +416,18 @@ def train_resnet101_semantic_gan(training = True):
         dataset.prepare()
         return _config, dataset, model_name
 
+def train_resnet101_semantic_b_w_colour(training=True):
+  return train_resnet_semantic_b_w_colour(training=training, architecture='resnet101')
+
+def train_resnet50_semantic_b_w_colour(training=True):
+  return train_resnet_semantic_b_w_colour(training=training, architecture='resnet50', id_suffix = 'res50')
 
 def main():
+    train_resnet50_semantic_b_w_colour()
     #train_resnet101_semantic()
     #train_resnet101_semantic_b_w_colour()
     #train_resnet101_semantic_b_w_colour_maskcount_balanced()
-    train_resnet101_semantic_gan()
+    #train_resnet101_semantic_gan()
 
 if __name__ == '__main__':
     main()

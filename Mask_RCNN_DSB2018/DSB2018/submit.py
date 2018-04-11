@@ -471,7 +471,8 @@ def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = No
 
     return ImageId, EncodedPixels
 
-def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None, 
+
+def predict_voting(configs, datasets, model_names, epochs = None, 
                   augment_flips = False, augment_scale = False, 
                   param_dict = {},
                   use_semantic = False,
@@ -480,59 +481,91 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                   save_predictions = False, create_submission = True):
     """
     Predicts an ensemble over multiple models via voting
-    Presently assumes that epoch/augment_flips/scal/param_dict/threshold/use_semantic are the same 
+    Presently assumes that model_name/augment_flips/scale/param_dict/threshold/use_semantic are the same 
     for all models you want to ensemble. Need to reformat to make these specific to each model.
+    Allows for cases where a single model is made up of multiple submodels that apply to different images.
     """
-    # Create save_dir
-    if save_predictions:
-        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
-        os.makedirs(save_dir)
 
+    # Generalise the format of configs and datasets to cater for cases where a single model set may be
+    # made up of multiple models/datasets
+    configs = [_config if isinstance(_config, list) else [_config] for _config in configs]
+    datasets = [dataset if isinstance(dataset, list) else [dataset] for dataset in datasets]
+    model_names = [model_name if isinstance(model_name, list) else [model_name] for model_name in model_names]
+    epochs = [epoch if isinstance(epoch, list) else [epoch] for epoch in epochs] if epochs is not None else [[None for d in dataset] for dataset in datasets]
+    config_batch_sizes = [[c.BATCH_SIZE for c in _config] for _config in configs]
+    batch_size = max([max([b for b in _config_batch_size]) for _config_batch_size in config_batch_sizes])
+
+    # Create the models
+    models = [[create_model(c, m, e) for c, e, m in zip(_config, epoch, model_name)] for _config, epoch, model_name in zip(configs, epochs, model_names)]
+
+    # Create a mapping for each model of image_path: model index
+    model_infos = merge_model_info(datasets)
+
+    # Make sure that you have a full set of model mappings for each model set
+    assert np.all([len(m) == len(model_infos[0]) for m in model_infos[1:]])
+
+    img_paths = np.array(list(model_infos[0].keys()))
+    n_images = len(img_paths)
+
+    # Set up holders for the submission rles which you will accumulate
     ImageId = []
     EncodedPixels = []
 
-    models = [create_model(_config, epoch) for _config in configs]
-    n_images = len(datasets[0].image_ids)
-    batch_size = max([_config.BATCH_SIZE for _config in configs])
-
+    list_fn_apply = [] + (['apply_flips_rotations'] if augment_flips else []) + (['apply_scaling'] if augment_scale else [])
+   
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
     for i in range(0, n_images, batch_size):
 
-        images = [load_dataset_images(dataset, i, batch_size) for dataset in datasets]
+        batch_img_paths = img_paths[i : (i + batch_size)]
+        images, images_idx = gather_images(datasets, batch_img_paths)
+
+        images_model_set = [[model[_idx] for _idx in idx] for model, idx in zip(models, images_idx)]
+        configs_model_set = [[_config[_idx] for _idx in idx] for _config, idx in zip(configs, images_idx)]
+        identical_idx = [np.all([id == _idx[0] for id in _idx]) for _idx in images_idx]
 
         # Run detection
         res = []
-        for model, _images, _config in zip(models, images, configs):
+        for model, _images, _config, same_model in zip(images_model_set, images, configs_model_set, identical_idx):
 
-            if _configs.BATCH_SIZE == batch_size:
+            # Check if we can run the whole batch through with one model
+            if same_model and _config[0].BATCH_SIZE == batch_size:
 
                 # Run detection
                 if len(list_fn_apply) > 0:
-                    r = maskrcnn_detect_augmentations(_config, model, _images, list_fn_apply, 
+                    r = maskrcnn_detect_augmentations(_config[0], model[0], _images, list_fn_apply, 
                                                       threshold = nms_threshold, voting_threshold = voting_threshold, 
                                                       param_dict = param_dict, 
                                                       use_nms = False, use_semantic = use_semantic)
                 else:
-                    r = maskrcnn_detect(_config, model, _images, param_dict = param_dict, use_semantic = use_semantic) 
-                res.append(r)
+                    r = maskrcnn_detect(_config[0], model[0], _images, param_dict = param_dict, use_semantic = use_semantic) 
 
             else:
 
-                assert _configs.BATCH_SIZE == 1
-
+                # The batch needs to be split into individual models
                 r = []
-                for img in _images:
+                for _model, c, img in zip(model, _config, _images):
+
+                    # Artifically expand the batch if required by batch_size
+                    batch_img = img if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
+
                     # Run detection
                     if len(list_fn_apply) > 0:
-                        r.append(maskrcnn_detect_augmentations(_config, model, img, list_fn_apply, 
-                                                          threshold = nms_threshold, voting_threshold = voting_threshold, 
-                                                          param_dict = param_dict, 
-                                                          use_nms = False, use_semantic = use_semantic))
+                        prediction = maskrcnn_detect_augmentations(c, _model, batch_img, list_fn_apply, 
+                                                            threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                                            param_dict = param_dict, 
+                                                            use_nms = False, use_semantic = use_semantic)
                     else:
-                        r.append(maskrcnn_detect(_config, model, img, param_dict = param_dict, use_semantic = use_semantic))
+                        prediction = maskrcnn_detect(c, _model, batch_img, param_dict = param_dict, use_semantic = use_semantic)
 
-                res.append(r)
+                    # If you artificially expanded the batch subselect what you need
+                    if c.BATCH_SIZE > 1:
+                        prediction = prediction[0] 
+
+                    r.append(prediction)
+
+            # r now contains the results for the images in the batch
+            res.append(r)
         
         # Reduce to N images
         for j, idx in enumerate(range(i, i + batch_size)):      
@@ -544,33 +577,75 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                 # First reshape masks so that they can be concatenated:
                 for r in res:
                     r[j]['masks'] = np.moveaxis(r[j]['masks'], -1, 0)
+                    if use_semantic:
+                        # semantic_masks is flat. We need to expand to the r[j]['masks'] dimensions
+                        r[j]['semantic_masks'] = np.stack([r[j]['semantic_masks']] * r[j]['masks'].shape[0], axis = 0)
                 
                 # Concatenate
                 img_results = du.concatenate_list_of_dicts([r[j] for r in res])
 
                 # Reduce via voting
-                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = False, n_votes = len(models))
+                img_results = reduce_via_voting(img_results, nms_threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
 
-                img_name = datasets[0].image_info[idx]['name']
+                img_name = os.path.splitext(os.path.split(batch_img_paths[j])[-1])[0]
         
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
-                if False:
-                    class_names = ['background', 'nucleus']
-                    visualize.display_instances((images[j] * 255).astype(np.uint8), rois, masks, np.ones(scores.shape, dtype = np.int), class_names, scores, figsize = (8, 8))
-                    
-                if save_predictions:
-                    # Extract final masks from EncodedPixels_batch here and save
-                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(save_dir, EncodedPixels_batch, img_results['masks'].shape[:2], dataset.image_info[idx])
-
-
     if create_submission:
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
-                                                    '_'.join([_config.NAME for _config in configs]), 
-                                                    str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def merge_model_info(datasets):
+    """
+    Create a single dictionary for each model set that 
+    holds the model index that each image needs to refer to
+    """
+    model_info = [{}] * len(datasets)
+    for d, dataset in enumerate(datasets):
+        # We have multiple models/datasets making up the full set
+        for j in range(len(dataset)):
+            for i in range(len(dataset[j].image_ids)):
+                model_info[d][dataset[j].image_info[i]['path']] = j 
+
+    return model_info
+
+
+def index_by_path(datasets, img_path):
+
+    img_path_idx = [None] * len(datasets)
+
+    for i, dataset in enumerate(datasets):
+        for j, d in enumerate(dataset):
+            d_paths = [image_info['path'] for image_info in d.image_info]
+            if img_path in d_paths:
+                img_path_idx[i] = (j, d_paths.index(img_path))
+                continue
+    return img_path_idx
+
+
+def gather_images(datasets, batch_img_paths):
+    """
+    For a given batch of image paths, get the relevant raw data
+    from the datasets.
+    NB: if 
+    """
+    n_batch = len(batch_img_paths)
+
+    images = [[] for d in datasets]
+    image_idx = [[] for d in datasets]
+
+    for img_path in batch_img_paths:
+
+        img_path_idx = index_by_path(datasets, img_path) 
+
+        for j, path_idx in enumerate(img_path_idx):
+
+            images[j].extend(load_dataset_images(datasets[j][path_idx[0]], path_idx[1], 1))
+            image_idx[j].append(path_idx[0]) # the model/dataset that the image is mapped to
+
+    return images, image_idx
 
 
 def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info):
@@ -592,7 +667,16 @@ def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info
 
 
 def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
-    _config, dataset, model_name = fn_experiment(training=False)
+
+    if isinstance(fn_experiment, list):
+        _config, dataset, model_name = [], [], []
+        for fn in fn_experiment:
+            expt_output = fn(training=False)
+            _config.append(expt_output[0])
+            dataset.append(expt_output[1])
+            model_name.append(expt_output[2])
+    else:
+        _config, dataset, model_name = fn_experiment(training=False)
     submission_filename = globals()[fn_predict](_config, dataset, model_name, **kwargs)
 
     if submission_filename is not None:
@@ -623,13 +707,17 @@ def main():
                                         'n_erode': 0},
                         use_semantic = True)
         """
-        predict_experiment(train.train_resnet101_semantic_b_w_colour_maskcount_balanced, 'predict_multiple_concat',
-                        augment_flips = True, augment_scale = True,
-                        nms_threshold = 0.5, voting_threshold = 0.5,
-                        param_dict = {'scales': [0.85, 0.9, 0.95],
-                                        'n_dilate': 1,
-                                        'n_erode': 0},
-                        use_semantic = True)
+        predict_experiment([train.train_resnet101_semantic_b_w_colour,
+                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
+                            train.train_resnet50_semantic_b_w_colour],
+                           'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
+
 
 if __name__ == '__main__':
     main()
