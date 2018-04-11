@@ -515,7 +515,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
    
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    for i in range(0, n_images, batch_size):
+    for i in tqdm(range(0, n_images, batch_size)):
 
         batch_img_paths = img_paths[i : (i + batch_size)]
         images, images_idx = gather_images(datasets, batch_img_paths)
@@ -551,12 +551,12 @@ def predict_voting(configs, datasets, model_names, epochs = None,
 
                     # Run detection
                     if len(list_fn_apply) > 0:
-                        prediction = maskrcnn_detect_augmentations(c, _model, batch_img, list_fn_apply, 
+                        prediction = maskrcnn_detect_augmentations(c, _model, [batch_img], list_fn_apply, 
                                                             threshold = nms_threshold, voting_threshold = voting_threshold, 
                                                             param_dict = param_dict, 
                                                             use_nms = False, use_semantic = use_semantic)
                     else:
-                        prediction = maskrcnn_detect(c, _model, batch_img, param_dict = param_dict, use_semantic = use_semantic)
+                        prediction = maskrcnn_detect(c, _model, [batch_img], param_dict = param_dict, use_semantic = use_semantic)
 
                     # If you artificially expanded the batch subselect what you need
                     if c.BATCH_SIZE > 1:
@@ -587,8 +587,14 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 # Reduce via voting
                 img_results = reduce_via_voting(img_results, nms_threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
 
+                # Reshape 
+                img_results['masks'] = np.moveaxis(img_results['masks'], 0, -1)
+                img_results['class_ids'] = img_results['class_ids'].reshape(-1, )
+                img_results['scores'] = img_results['scores'].reshape(-1, )
+
                 img_name = os.path.splitext(os.path.split(batch_img_paths[j])[-1])[0]
         
+                # Create submission rle entry
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
