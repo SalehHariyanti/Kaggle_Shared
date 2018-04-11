@@ -9,7 +9,7 @@ import imageio
 import skimage
 from scipy import ndimage
 import os
-from settings import train_dir, data_dir, train_group_id_file, test_group_id_file, supplementary_group_id_file
+from settings import train_dir, data_dir, train_group_id_file, test_group_id_file, supplementary_group_id_file, gan_group_id_file
 import pandas as pd
 import dsb2018_utils as du
 import glob
@@ -270,12 +270,14 @@ def get_ids(file_id):
     assert os.path.exists(train_group_id_file)
     assert os.path.exists(supplementary_group_id_file)
     assert os.path.exists(test_group_id_file)
+    assert os.path.exists(gan_group_id_file)
 
     train_df = pd.read_csv(train_group_id_file)
     supplementary_df = pd.read_csv(supplementary_group_id_file)
     test_df = pd.read_csv(test_group_id_file)
+    gan_df = pd.read_csv(gan_group_id_file)
 
-    mosaic_df = pd.concat([train_df, supplementary_df, test_df])
+    mosaic_df = pd.concat([train_df, supplementary_df, test_df, gan_df])
 
     mosaic_file_id = np.array(mosaic_df['img_id'])
     mosaic_idx = np.array(mosaic_df['mosaic_idx'])
@@ -309,7 +311,6 @@ def get_ids(file_id):
         maskcount[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
 
     return cluster, colour, maskcount, mosaic_id, mosaic_pos
-
 def main():
     return
 

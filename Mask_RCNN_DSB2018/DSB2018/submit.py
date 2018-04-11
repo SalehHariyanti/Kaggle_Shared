@@ -101,10 +101,8 @@ def apply_scaling(_config, images, param_dict):
     scales = param_dict['scales']
 
     # Note: output of utils is: image, window, scale, padding
-    try:
-        model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
-    except:
-        print('here')
+    model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
+
     # Take the image window out of the model image inputs (the rest is padding)
     model_images_ex_padding = [x[0][x[1][0] : x[1][2], x[1][1] : x[1][3]] for x in model_inputs]
    
@@ -440,7 +438,7 @@ def predict_model(_config, dataset, model_name='MaskRCNN', epoch = None,
     return ImageId, EncodedPixels
 
 
-def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = None, 
+def predict_multiple_concat(configs, datasets, model_names, epoch = None, 
                   augment_flips = False, augment_scale = False, 
                   param_dict = {},
                   use_semantic = False,
@@ -451,7 +449,7 @@ def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = No
     ImageId = []
     EncodedPixels = []
 
-    for _config, dataset in zip(configs, datasets):
+    for _config, model_name, dataset in zip(configs, model_names, datasets):
         
         _ImageId, _EncodedPixels = predict_model(_config, dataset, model_name = model_name, epoch = epoch, 
                                                   augment_flips = augment_flips, augment_scale = augment_scale, 
@@ -700,27 +698,15 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-        """
-        predict_experiment(train.train_resnet101_semantic, 'predict_model',
-                        augment_flips = True, augment_scale = True,
-                        nms_threshold = 0.5, voting_threshold = 0.5,
-                        param_dict = {'scales': [0.85, 0.9, 0.95],
-                                        'n_dilate': 1,
-                                        'n_erode': 0},
-                        use_semantic = True)
 
-        predict_experiment(train.train_resnet101_semantic_b_w_colour, 'predict_multiple_concat',
-                        augment_flips = True, augment_scale = True,
-                        nms_threshold = 0.5, voting_threshold = 0.5,
-                        param_dict = {'scales': [0.85, 0.9, 0.95],
-                                        'n_dilate': 1,
-                                        'n_erode': 0},
-                        use_semantic = True)
-        """
-
-        predict_experiment([train.train_resnet101_semantic_b_w_colour,
-                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
-                            train.train_resnet50_semantic_b_w_colour],
+        predict_experiment([train.train_resnet101_semantic,
+                            train.train_resnet50_semantic,
+                            train.train_resnet101_semantic_maskcount_balanced,
+                            train.train_resnet50_semantic_maskcount_balanced,
+                            train.train_resnet101_semantic_maskcount_balanced_gan,
+                            train.train_resnet50_semantic_maskcount_balanced_gan,
+                            train.train_resnet50_semantic_gan
+                            ],
                            'predict_voting',
                             augment_flips = True, augment_scale = True,
                             nms_threshold = 0.5, voting_threshold = 0.5,
@@ -728,6 +714,24 @@ def main():
                                             'n_dilate': 1,
                                             'n_erode': 0},
                             use_semantic = True)
+
+
+        predict_experiment([train.train_resnet101_semantic_b_w_colour,
+                            train.train_resnet50_semantic_b_w_colour,
+                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
+                            train.train_resnet50_semantic_b_w_colour_maskcount_balanced,
+                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
+                            train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
+                            train.train_resnet50_semantic_b_w_colour_gan
+                            ],
+                           'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
+
 
 
 if __name__ == '__main__':

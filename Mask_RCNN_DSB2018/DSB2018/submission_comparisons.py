@@ -55,7 +55,7 @@ def compare_submissions(submission_files):
     submissions_filenames = [x[0] for x in submissions_data]
     submissions_rles = [x[1] for x in submissions_data]
 
-    for i in range(len(submissions_filenames[0])):
+    for i in range(len(submissions_filenames[0]) - 1, -1, -1):
         this_file = submissions_filenames[0][i]
         test_img = load_img(os.path.join(test_dir, this_file, 'images', ''.join((this_file, '.png'))), greyscale = True)
         labels = [labels_from_rles(sr[np.argwhere(sf == this_file).reshape(-1,)][0], test_img.shape[:2])[0] for sr, sf in zip(submissions_rles, submissions_filenames)]
@@ -131,7 +131,8 @@ def main():
     else:
 
         # Overwrite filenames with the submissions you wish to compare
-        compare_submissions([os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_400_0.3_gment_semantic_bw_dim_o-tf-gauss--0.2--horiz-True-rots-True-verti-True_0.5_None_20180411104618_.csv'),
+        compare_submissions([os.path.join(submissions_dir, 'submission_ensemble_20180411223011_.csv'),
+                             os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_400_0.3_gment_semantic_bw_dim_o-tf-gauss--0.2--horiz-True-rots-True-verti-True_0.5_None_20180411104618_.csv'),
                              os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_400_0.3_t_nsb_semantic_bw_dim_o-tf-gauss--0.2--horiz-True-rots-True-verti-True_0.5_None_20180411093443_.csv')])
                              #os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408211013_.csv')])
         #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')

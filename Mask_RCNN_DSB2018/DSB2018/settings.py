@@ -35,6 +35,7 @@ test_mosaics_dir  = os.path.join(base_dir, "test_mosaics")
 supplementary_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                      os.path.join(base_dir, 'train_external', 'nsb')]
 
+gan_dir = os.path.join(base_dir, 'train_external', 'GAN')
 
 """
 group_id_file = os.path.join(data_dir, 'data_ids.csv')
@@ -63,3 +64,8 @@ if not os.path.exists(supplementary_group_id_file):
     run(supplementary_group_id_file, supplementary_dir, [train_dir]+ [gan_dir])
 
 
+gan_group_id_file = os.path.join(data_dir, 'gan_data_ids.csv')
+if not os.path.exists(gan_group_id_file):
+    from clustering_functions import run
+    print("Generating {}".format(gan_group_id_file))
+    run(gan_group_id_file, gan_dir, [train_dir] + supplementary_dir)
