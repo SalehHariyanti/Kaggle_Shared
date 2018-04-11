@@ -311,6 +311,8 @@ def get_ids(file_id):
         maskcount[np.logical_not(A)] = np.zeros((sum(np.logical_not(A)),))
 
     return cluster, colour, maskcount, mosaic_id, mosaic_pos
+
+
 def main():
     return
 

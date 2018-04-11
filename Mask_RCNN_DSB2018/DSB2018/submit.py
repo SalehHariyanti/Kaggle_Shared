@@ -703,9 +703,9 @@ def main():
                             train.train_resnet50_semantic,
                             train.train_resnet101_semantic_maskcount_balanced,
                             train.train_resnet50_semantic_maskcount_balanced,
-                            train.train_resnet101_semantic_maskcount_balanced_gan,
-                            train.train_resnet50_semantic_maskcount_balanced_gan,
-                            train.train_resnet50_semantic_gan
+                            #train.train_resnet101_semantic_maskcount_balanced_gan,
+                            #train.train_resnet50_semantic_maskcount_balanced_gan,
+                            #train.train_resnet50_semantic_gan
                             ],
                            'predict_voting',
                             augment_flips = True, augment_scale = True,
@@ -720,9 +720,9 @@ def main():
                             train.train_resnet50_semantic_b_w_colour,
                             train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
                             train.train_resnet50_semantic_b_w_colour_maskcount_balanced,
-                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
-                            train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
-                            train.train_resnet50_semantic_b_w_colour_gan
+                            #train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
+                            #train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
+                            #train.train_resnet50_semantic_b_w_colour_gan
                             ],
                            'predict_voting',
                             augment_flips = True, augment_scale = True,

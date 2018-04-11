@@ -37,13 +37,7 @@ supplementary_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
 
 gan_dir = os.path.join(base_dir, 'train_external', 'GAN')
 
-"""
-group_id_file = os.path.join(data_dir, 'data_ids.csv')
-if not os.path.exists(group_id_file):
-    from clustering_functions import run
-    print("Generating {}".format(group_id_file))
-    run(group_id_file)
-"""
+# Run group_id_files if they don't exist
 
 train_group_id_file = os.path.join(data_dir, 'train_data_ids.csv')
 if not os.path.exists(train_group_id_file):
@@ -65,7 +59,7 @@ if not os.path.exists(supplementary_group_id_file):
 
 
 gan_group_id_file = os.path.join(data_dir, 'gan_data_ids.csv')
-if not os.path.exists(gan_group_id_file):
+if False and not os.path.exists(gan_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(gan_group_id_file))
     run(gan_group_id_file, gan_dir, [train_dir] + supplementary_dir)

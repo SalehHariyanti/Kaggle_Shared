@@ -296,7 +296,7 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
 
         colour_model.train(dataset_train, dataset_val,
                     learning_rate=colour_config.LEARNING_RATE,
-                    epochs=1 if TESTING else 10,
+                    epochs=1 if TESTING else 10 + (5 if include_gan else 0),
                     layers='all',
                     augment_val = True)
 
@@ -421,7 +421,7 @@ def train_resnet_semantic_b_w_colour_maskcount_balanced(training = True, archite
 
         colour_model.train(dataset_train, dataset_val,
                     learning_rate=colour_config.LEARNING_RATE,
-                    epochs=1 if TESTING else 10,
+                    epochs=1 if TESTING else 10 + (5 if include_gan else 0),
                     layers='all',
                     augment_val = True,
                     balance_by_cluster_id = True, str_cluster_id = 'maskcount_id')
