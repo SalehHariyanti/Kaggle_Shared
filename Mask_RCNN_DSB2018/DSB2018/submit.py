@@ -16,7 +16,7 @@ from tqdm import tqdm
 import visualize
 import matplotlib.pyplot as plt
 
-import train_final
+import train
 import getpass
                     
 
@@ -459,13 +459,17 @@ def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = No
         ImageId += _ImageId
         EncodedPixels += _EncodedPixels
 
-    if create_submission:                   
+    if create_submission:   
 
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission', 
-                                                        #'_'.join([_config.NAME for _config in configs]), 
-                                                        configs[0].NAME,
-                                                        str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+        submission_filename = os.path.join(
+            submissions_dir, '_'.join(('submission', 
+            configs[0].NAME,
+            str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv')))
 
+        f.write2csv(submission_filename, ImageId, EncodedPixels)
+        return submission_filename
+
+    return ImageId, EncodedPixels
 
 def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None, 
                   augment_flips = False, augment_scale = False, 
@@ -603,7 +607,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 def main():
 
-        predict_experiment(train_final.train_resnet101_semantic, 'predict_model',
+        predict_experiment(train.train_resnet101_semantic, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
@@ -611,7 +615,7 @@ def main():
                                         'n_erode': 0},
                         use_semantic = True)
 
-        predict_experiment(train_final.train_resnet101_semantic_b_w_colour, 'predict_multiple_concat',
+        predict_experiment(train.train_resnet101_semantic_b_w_colour, 'predict_multiple_concat',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
