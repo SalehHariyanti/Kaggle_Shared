@@ -471,7 +471,8 @@ def predict_multiple_concat(configs, datasets, model_name='MaskRCNN', epoch = No
 
     return ImageId, EncodedPixels
 
-def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None, 
+
+def predict_voting(configs, datasets, model_name='MaskRCNN', epochs = None, 
                   augment_flips = False, augment_scale = False, 
                   param_dict = {},
                   use_semantic = False,
@@ -480,57 +481,79 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                   save_predictions = False, create_submission = True):
     """
     Predicts an ensemble over multiple models via voting
-    Presently assumes that epoch/augment_flips/scal/param_dict/threshold/use_semantic are the same 
+    Presently assumes that augment_flips/scale/param_dict/threshold/use_semantic are the same 
     for all models you want to ensemble. Need to reformat to make these specific to each model.
+    Allows for cases where a single model is made up of multiple submodels that apply to different images.
     """
-    # Create save_dir
-    if save_predictions:
-        save_dir = os.path.join(data_dir, configs[0].NAME, '_'.join(('submission', datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
-        os.makedirs(save_dir)
-
     ImageId = []
     EncodedPixels = []
 
-    models = [create_model(_config, epoch) for _config in configs]
-    n_images = len(datasets[0].image_ids)
-    batch_size = max([_config.BATCH_SIZE for _config in configs])
+    # Generalise the format of configs and datasets to cater for cases where a single model set may be
+    # made up of multiple models/datasets
+    configs = [_config if isinstance(_config, list) else [_config] for _config in configs]
+    datasets = [dataset if isinstance(dataset, list) else [dataset] for dataset in datasets]
+    epochs = [epoch if isinstance(epoch, list) else [epoch] for epoch in epochs] if epochs is not None else [[None for d in dataset] for dataset in datasets]
+    config_batch_sizes = [[c.BATCH_SIZE for c in _config] for _config in configs]
+    batch_size = max([max([b for b in _config_batch_size]) for _config_batch_size in config_batch_sizes])
+
+    models = [[create_model(c, e) for c, e in zip(_config, epoch)] for _config, epoch in zip(configs, epochs)]
+
+    # Create a mapping for each model set that holds the model index that each image needs to use
+    model_infos = merge_model_info(datasets)
+
+    # Make sure that you have a full set of model mappings for each model set
+    assert np.all([len(m) == len(model_info[0]) for m in model_info[1:]])
+
+    img_paths = np.array(model_infos[0].keys())
+    n_images = len(img_paths)
 
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
     for i in range(0, n_images, batch_size):
 
-        images = [load_dataset_images(dataset, i, batch_size) for dataset in datasets]
+        batch_img_paths = img_paths[i : (i + batch_size)]
+        images, images_idx = gather_images(datasets, batch_img_paths)
+
+        images_model_set = [model[idx] for model, idx in zip(models, images_idx)]
+        configs_model_set = [_config[idx] for _config, idx in zip(configs, images_idx)]
+        identical_idx = [np.all([id == _idx[0] for id in _idx]) for _idx in images_idx]
 
         # Run detection
         res = []
-        for model, _images, _config in zip(models, images, configs):
+        for model, _images, _config, same_model in zip(images_model_set, images, configs_model_set, identical_idx):
 
-            if _configs.BATCH_SIZE == batch_size:
+            # Check if we can run the whole batch through with one model
+            if same_model and _config[0].BATCH_SIZE == batch_size:
 
                 # Run detection
                 if len(list_fn_apply) > 0:
-                    r = maskrcnn_detect_augmentations(_config, model, _images, list_fn_apply, 
+                    r = maskrcnn_detect_augmentations(_config[0], model[0], _images, list_fn_apply, 
                                                       threshold = nms_threshold, voting_threshold = voting_threshold, 
                                                       param_dict = param_dict, 
                                                       use_nms = False, use_semantic = use_semantic)
                 else:
-                    r = maskrcnn_detect(_config, model, _images, param_dict = param_dict, use_semantic = use_semantic) 
+                    r = maskrcnn_detect(_config[0], model[0], _images, param_dict = param_dict, use_semantic = use_semantic) 
                 res.append(r)
 
             else:
 
-                assert _configs.BATCH_SIZE == 1
-
+                # The batch needs to be split into individual models
                 r = []
-                for img in _images:
+                for _model, c, img in zip(model, _config, _images):
+                    batch_img = img if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
                     # Run detection
                     if len(list_fn_apply) > 0:
-                        r.append(maskrcnn_detect_augmentations(_config, model, img, list_fn_apply, 
-                                                          threshold = nms_threshold, voting_threshold = voting_threshold, 
-                                                          param_dict = param_dict, 
-                                                          use_nms = False, use_semantic = use_semantic))
+                        prediction = maskrcnn_detect_augmentations(c, _model, batch_img, list_fn_apply, 
+                                                            threshold = nms_threshold, voting_threshold = voting_threshold, 
+                                                            param_dict = param_dict, 
+                                                            use_nms = False, use_semantic = use_semantic)
                     else:
-                        r.append(maskrcnn_detect(_config, model, img, param_dict = param_dict, use_semantic = use_semantic))
+                        prediction = maskrcnn_detect(c, _model, batch_img, param_dict = param_dict, use_semantic = use_semantic)
+
+                    if c.BATCH_SIZE > 1:
+                        prediction = prediction[0] 
+
+                    r.append(prediction)
 
                 res.append(r)
         
@@ -549,7 +572,7 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                 img_results = du.concatenate_list_of_dicts([r[j] for r in res])
 
                 # Reduce via voting
-                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = False, n_votes = len(models))
+                img_results = reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_semantic = use_semantic, n_votes = len(models))
 
                 img_name = datasets[0].image_info[idx]['name']
         
@@ -557,20 +580,60 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epoch = None,
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
 
-                if False:
-                    class_names = ['background', 'nucleus']
-                    visualize.display_instances((images[j] * 255).astype(np.uint8), rois, masks, np.ones(scores.shape, dtype = np.int), class_names, scores, figsize = (8, 8))
-                    
-                if save_predictions:
-                    # Extract final masks from EncodedPixels_batch here and save
-                    # using filename: (mosaic_id)_(mosaic_position)_(img_name).npy
-                    save_model_predictions(save_dir, EncodedPixels_batch, img_results['masks'].shape[:2], dataset.image_info[idx])
-
-
     if create_submission:
         f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_nms', 
                                                     '_'.join([_config.NAME for _config in configs]), 
                                                     str(epoch), datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+
+
+def merge_model_info(datasets):
+    """
+    Create a single dictionary for each model set that 
+    holds the model index that each image needs to refer to
+    """
+    model_info = [{}] * len(datasets)
+    for d, dataset in enumerate(datasets):
+        # We have multiple models/datasets making up the full set
+        for j in range(len(dataset)):
+            for i in range(len(dataset[j].image_ids)):
+                model_info[d][dataset[j].image_ids[i].image_info['path']] = j 
+
+    return model_info
+
+
+def index_by_path(datasets, img_path):
+
+    img_path_idx = [None] * len(datasets)
+
+    for i, dataset in enumerate(datasets):
+        for j, d in enumerate(dataset):
+            if img_path in d.keys():
+                img_path_idx[i] = (j, d.index(img_path))
+                continue
+    return img_path_idx
+
+
+def gather_images(datasets, config_batch_sizes, batch_img_paths):
+    """
+    For a given batch of image paths, get the relevant raw data
+    from the datasets.
+    NB: if 
+    """
+    n_batch = len(batch_img_paths)
+
+    images = [[]] * len(datasets)
+    image_idx = [[]] * len(datasets)
+
+    for img_path in batch_img_paths:
+
+        img_path_idx = index_by_path(datasets, img_path) 
+
+        for j, path_idx in enumerate(img_path_idx):
+
+            images[j].append(load_dataset_images(dataset[path_idx[0]], path_idx[1], 1))
+            image_idx[j].append(path_idx[0]) # the model/dataset that the image is mapped to
+
+    return images, image_idx
 
 
 def save_model_predictions(save_dir, EncodedPixels_batch, mask_shape, image_info):
