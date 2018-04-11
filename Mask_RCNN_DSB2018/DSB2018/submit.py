@@ -101,7 +101,10 @@ def apply_scaling(_config, images, param_dict):
     scales = param_dict['scales']
 
     # Note: output of utils is: image, window, scale, padding
-    model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
+    try:
+        model_inputs = [utils.resize_image(img, min_dim = _config.IMAGE_MIN_DIM, max_dim = _config.IMAGE_MAX_DIM, padding = _config.IMAGE_PADDING) for img in images]
+    except:
+        print('here')
     # Take the image window out of the model image inputs (the rest is padding)
     model_images_ex_padding = [x[0][x[1][0] : x[1][2], x[1][1] : x[1][3]] for x in model_inputs]
    
@@ -518,6 +521,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
     for i in tqdm(range(0, n_images, batch_size)):
 
         batch_img_paths = img_paths[i : (i + batch_size)]
+        if len(batch_img_paths) != batch_size:
+            batch_img_paths.append(batch_img_paths[:(i + batch_size - len(img_paths))])
+
         images, images_idx = gather_images(datasets, batch_img_paths)
 
         images_model_set = [[model[_idx] for _idx in idx] for model, idx in zip(models, images_idx)]
@@ -547,20 +553,18 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 for _model, c, img in zip(model, _config, _images):
 
                     # Artifically expand the batch if required by batch_size
-                    batch_img = img if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
+                    batch_img = [img] if c.BATCH_SIZE == 1 else [img] * c.BATCH_SIZE
 
                     # Run detection
                     if len(list_fn_apply) > 0:
-                        prediction = maskrcnn_detect_augmentations(c, _model, [batch_img], list_fn_apply, 
+                        prediction = maskrcnn_detect_augmentations(c, _model, batch_img, list_fn_apply, 
                                                             threshold = nms_threshold, voting_threshold = voting_threshold, 
                                                             param_dict = param_dict, 
                                                             use_nms = False, use_semantic = use_semantic)
                     else:
-                        prediction = maskrcnn_detect(c, _model, [batch_img], param_dict = param_dict, use_semantic = use_semantic)
+                        prediction = maskrcnn_detect(c, _model, batch_img, param_dict = param_dict, use_semantic = use_semantic)
 
-                    # If you artificially expanded the batch subselect what you need
-                    if c.BATCH_SIZE > 1:
-                        prediction = prediction[0] 
+                    prediction = prediction[0] 
 
                     r.append(prediction)
 
@@ -681,6 +685,9 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
             _config.append(expt_output[0])
             dataset.append(expt_output[1])
             model_name.append(expt_output[2])
+        _config = [c[1:] for c in _config]
+        dataset = [d[1:] for d in dataset]
+        model_name = [m[1:] for m in model_name]
     else:
         _config, dataset, model_name = fn_experiment(training=False)
     submission_filename = globals()[fn_predict](_config, dataset, model_name, **kwargs)
@@ -713,6 +720,7 @@ def main():
                                         'n_erode': 0},
                         use_semantic = True)
         """
+
         predict_experiment([train.train_resnet101_semantic_b_w_colour,
                             train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
                             train.train_resnet50_semantic_b_w_colour],
