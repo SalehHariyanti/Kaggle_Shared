@@ -119,7 +119,7 @@ def train_resnet101_semantic(training = True):
         return _config, dataset, model_name
 
 
-def train_resnet101_semantic_b_w_colour(training = True):
+def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101'):
     """
     b/w and colour models: 
     - semantic included
@@ -137,7 +137,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
     bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
                             test_data_root = [test_dir],
                             init_with = 'coco',
-                            architecture = 'resnet101',
+                            architecture = architecture,
                             mini_mask_shape = 12,
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
@@ -153,7 +153,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
     colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir,
                             test_data_root = [test_dir],
                             init_with = 'coco',
-                            architecture = 'resnet101',
+                            architecture = architecture,
                             mini_mask_shape = 12,
                             max_gt_instances = 400,
                             rpn_nms_threshold = 0.9,
@@ -416,12 +416,18 @@ def train_resnet101_semantic_gan(training = True):
         dataset.prepare()
         return _config, dataset, model_name
 
+def train_resnet101_semantic_b_w_colour(training=True):
+  return train_resnet_semantic_b_w_colour(training=training, architecture='resnet101')
+
+def train_resnet50_semantic_b_w_colour(training=True):
+  return train_resnet_semantic_b_w_colour(training=training, architecture='resnet50')
 
 def main():
+    train_resnet50_semantic_b_w_colour()
     #train_resnet101_semantic()
     #train_resnet101_semantic_b_w_colour()
     #train_resnet101_semantic_b_w_colour_maskcount_balanced()
-    train_resnet101_semantic_gan()
+    #train_resnet101_semantic_gan()
 
 if __name__ == '__main__':
     main()
