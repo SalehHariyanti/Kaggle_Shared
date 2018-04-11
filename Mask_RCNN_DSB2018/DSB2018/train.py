@@ -235,7 +235,7 @@ def train_resnet101_semantic_b_w_colour(training = True):
 
 
 def main():
-    train_resnet101_semantic()
+    #train_resnet101_semantic()
     train_resnet101_semantic_b_w_colour()
 
 if __name__ == '__main__':
