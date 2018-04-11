@@ -481,7 +481,7 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epochs = None,
                   save_predictions = False, create_submission = True):
     """
     Predicts an ensemble over multiple models via voting
-    Presently assumes that augment_flips/scale/param_dict/threshold/use_semantic are the same 
+    Presently assumes that model_name/augment_flips/scale/param_dict/threshold/use_semantic are the same 
     for all models you want to ensemble. Need to reformat to make these specific to each model.
     Allows for cases where a single model is made up of multiple submodels that apply to different images.
     """
@@ -496,7 +496,7 @@ def predict_voting(configs, datasets, model_name='MaskRCNN', epochs = None,
     config_batch_sizes = [[c.BATCH_SIZE for c in _config] for _config in configs]
     batch_size = max([max([b for b in _config_batch_size]) for _config_batch_size in config_batch_sizes])
 
-    models = [[create_model(c, e) for c, e in zip(_config, epoch)] for _config, epoch in zip(configs, epochs)]
+    models = [[create_model(c, model_name, e) for c, e in zip(_config, epoch)] for _config, epoch in zip(configs, epochs)]
 
     # Create a mapping for each model set that holds the model index that each image needs to use
     model_infos = merge_model_info(datasets)
@@ -669,7 +669,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-
+        """
         predict_experiment(train.train_resnet101_semantic, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
@@ -685,6 +685,17 @@ def main():
                                         'n_dilate': 1,
                                         'n_erode': 0},
                         use_semantic = True)
+        """
+        predict_experiment([train.train_resnet101_semantic_b_w_colour,
+                            train.train_resnet101_semantic_b_w_colour_balanced,
+                            train.train_resnet50_semantic_b_w_colour],
+                           'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
 
 
 if __name__ == '__main__':
