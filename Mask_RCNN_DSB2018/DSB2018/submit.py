@@ -16,7 +16,7 @@ from tqdm import tqdm
 import visualize
 import matplotlib.pyplot as plt
 
-import train_final
+import train
 import getpass
                     
 
@@ -602,16 +602,16 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-
-        predict_experiment(train_final.train_resnet101_semantic, 'predict_model',
+        """
+        predict_experiment(train.train_resnet101_semantic, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
                                         'n_dilate': 1,
                                         'n_erode': 0},
                         use_semantic = True)
-
-        predict_experiment(train_final.train_resnet101_semantic_b_w_colour, 'predict_multiple_concat',
+        """
+        predict_experiment(train.train_resnet101_semantic_b_w_colour, 'predict_multiple_concat',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
                         param_dict = {'scales': [0.85, 0.9, 0.95],
