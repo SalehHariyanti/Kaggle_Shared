@@ -231,7 +231,7 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
         bw_config.RPN_NMS_THRESHOLD = 0.7
         colour_config.RPN_NMS_THRESHOLD = 0.7
 
-        return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
+        return [bw_config, colour_config], [bw_dataset, colour_dataset], [model_name, model_name]
 
 
 def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
@@ -349,7 +349,7 @@ def train_resnet101_semantic_b_w_colour_maskcount_balanced(training = True):
         bw_config.RPN_NMS_THRESHOLD = 0.7
         colour_config.RPN_NMS_THRESHOLD = 0.7
 
-        return [bw_config, colour_config], [bw_dataset, colour_dataset], model_name
+        return [bw_config, colour_config], [bw_dataset, colour_dataset], [model_name, model_name]
 
 
 def train_resnet101_semantic_gan(training = True):
