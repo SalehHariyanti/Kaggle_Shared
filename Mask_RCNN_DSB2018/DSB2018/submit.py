@@ -685,9 +685,6 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
             _config.append(expt_output[0])
             dataset.append(expt_output[1])
             model_name.append(expt_output[2])
-        _config = [c[1:] for c in _config]
-        dataset = [d[1:] for d in dataset]
-        model_name = [m[1:] for m in model_name]
     else:
         _config, dataset, model_name = fn_experiment(training=False)
     submission_filename = globals()[fn_predict](_config, dataset, model_name, **kwargs)
