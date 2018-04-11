@@ -606,7 +606,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-
+        """
         predict_experiment(train.train_resnet101_semantic, 'predict_model',
                         augment_flips = True, augment_scale = True,
                         nms_threshold = 0.5, voting_threshold = 0.5,
@@ -622,7 +622,14 @@ def main():
                                         'n_dilate': 1,
                                         'n_erode': 0},
                         use_semantic = True)
-
+        """
+        predict_experiment(train.train_resnet101_semantic_b_w_colour_maskcount_balanced, 'predict_multiple_concat',
+                        augment_flips = True, augment_scale = True,
+                        nms_threshold = 0.5, voting_threshold = 0.5,
+                        param_dict = {'scales': [0.85, 0.9, 0.95],
+                                        'n_dilate': 1,
+                                        'n_erode': 0},
+                        use_semantic = True)
 
 if __name__ == '__main__':
     main()
