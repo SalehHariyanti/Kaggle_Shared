@@ -68,7 +68,7 @@ def extract_submission(submission_file):
         # Save them
         mask_filepaths = [os.path.join(test_dir, this_file, 'masks', ''.join((this_file, '_', str(i), '.png'))) for i in range(len(masks))]
         for mask_filepath, mask in zip(mask_filepaths, masks):
-            mask = Image.fromarray(mask)
+            mask = Image.fromarray(mask * 255)
             if not os.path.exists(os.path.split(mask_filepath)[0]):
                 os.makedirs(os.path.split(mask_filepath)[0])                                  
             mask.save(mask_filepath)
