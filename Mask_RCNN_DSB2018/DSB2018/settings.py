@@ -16,7 +16,7 @@ if os.name == 'nt' and len(local_device_protos) > 2:
     config = tensorflow.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     config.gpu_options.allow_growth = True
     config.gpu_options.per_process_gpu_memory_fraction = 0.7
-    config.gpu_options.visible_device_list = '1'
+    config.gpu_options.visible_device_list = '1,2'
     K.tensorflow_backend.set_session(tensorflow.Session(config=config))
 
 K.set_image_dim_ordering('tf')
@@ -71,4 +71,4 @@ stage2_test_group_id_file = os.path.join(data_dir, 'stage2_test_data_ids.csv')
 if not os.path.exists(stage2_test_group_id_file):
     from clustering_functions import run
     print("Generating {}".format(stage2_test_group_id_file))
-    run(test_group_id_file, [stage2_test_dir])
+    run(stage2_test_group_id_file, [stage2_test_dir])

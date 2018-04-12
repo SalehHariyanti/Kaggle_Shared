@@ -1327,7 +1327,7 @@ def load_image_gt_augment(dataset, config, image_id, augment=False,
             if np.all(np.array(image.shape[:2]) > 256):
                 image, mask = random_crop(image, mask, 
                                         (np.random.randint(256, min(512, image.shape[0])), np.random.randint(256, min(512, image.shape[1]))), 2)
-            else:
+            elif np.all(np.array(image.shape[:2]) > 220):
                 image, mask = random_crop(image, mask, 
                                         (np.random.randint(220, min(256, image.shape[0])), np.random.randint(220, min(256, image.shape[1]))), 2)
         # Random transform
@@ -1409,7 +1409,7 @@ def load_image_gt_augment_nsb(dataset, config, image_id, augment=False,
                 if np.all(np.array(image.shape[:2]) > 256):
                     image, mask = random_crop(image, mask, 
                                             (np.random.randint(256, min(512, image.shape[0])), np.random.randint(256, min(512, image.shape[1]))), 2)
-                else:
+                elif np.all(np.array(image.shape[:2]) > 220):
                     image, mask = random_crop(image, mask, 
                                             (np.random.randint(220, min(256, image.shape[0])), np.random.randint(220, min(256, image.shape[1]))), 2)
         # Random transform
