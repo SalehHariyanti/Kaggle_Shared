@@ -17,6 +17,8 @@ test_dir = os.path.join(base_dir, 'test')
 supplementary_data_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                           os.path.join(base_dir, 'train_external', 'nsb')]
 gan_dir = os.path.join(base_dir, 'train_external', 'GAN')
+stage2_test_dir = os.path.join(base_dir, 'stage2_test_final') 
+
 
 # Global constants.
 IMG_DIR_NAME = 'images'   # Folder name including the image

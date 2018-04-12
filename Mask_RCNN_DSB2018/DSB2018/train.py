@@ -7,7 +7,7 @@ import model as modellib
 from model import log
 import utils
 import random
-from settings import base_dir, train_dir, test_dir, supplementary_dir, gan_dir
+from settings import base_dir, train_dir, test_dir, supplementary_dir, gan_dir, stage2_test_dir
 import getpass
 USER = getpass.getuser()
 
@@ -74,8 +74,8 @@ def train_resnet_semantic(training = True, architecture = 'resnet101', include_g
     identifier = '_'.join((identifier, 'res101' if architecture == 'resnet101' else 'res50'))
 
     # Training config
-    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                        test_data_root = [test_dir],
+    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                        test_data_root = [stage2_test_dir],
                         init_with = 'coco',
                         architecture = architecture,
                         mini_mask_shape = 12,
@@ -95,9 +95,10 @@ def train_resnet_semantic(training = True, architecture = 'resnet101', include_g
         # Training dataset
         dataset_train = DSB2018_Dataset(**dataset_kwargs)
         dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1.)
+        dataset_train.add_nuclei(test_dir, 'train', split_ratio = 1.)
         if include_gan:
             dataset_train.add_nuclei(gan_dir, 'train', split_ratio = 1.)
-        for repeats in range((664 + (N_GAN if include_gan else 0))//36):
+        for repeats in range((730 + (N_GAN if include_gan else 0))//36):
           dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1.)
         dataset_train.prepare()
 
@@ -120,7 +121,7 @@ def train_resnet_semantic(training = True, architecture = 'resnet101', include_g
         _config.RPN_NMS_THRESHOLD = 0.7
 
         dataset = DSB2018_Dataset(**dataset_kwargs)
-        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False)
         dataset.prepare()
         return _config, dataset, model_name
 
@@ -142,8 +143,8 @@ def train_resnet_semantic_maskcount_balanced(training = True, architecture = 're
     identifier = '_'.join((identifier, 'res101' if architecture == 'resnet101' else 'res50'))
 
     # Training config
-    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                        test_data_root = [test_dir],
+    _config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                        test_data_root = [stage2_test_dir],
                         init_with = 'coco',
                         architecture = architecture,
                         mini_mask_shape = 12,
@@ -163,9 +164,10 @@ def train_resnet_semantic_maskcount_balanced(training = True, architecture = 're
         # Training dataset
         dataset_train = DSB2018_Dataset(**dataset_kwargs)
         dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1.)
+        dataset_train.add_nuclei(test_dir, 'train', split_ratio = 1.)
         if include_gan:
             dataset_train.add_nuclei(gan_dir, 'train', split_ratio = 1.)
-        for repeats in range((664 + (N_GAN if include_gan else 0))//36):
+        for repeats in range((730 + (N_GAN if include_gan else 0))//36):
             dataset_train.add_nuclei(supplementary_dir, 'train', split_ratio = 1.)
         dataset_train.prepare()
 
@@ -189,7 +191,7 @@ def train_resnet_semantic_maskcount_balanced(training = True, architecture = 're
         _config.RPN_NMS_THRESHOLD = 0.7
 
         dataset = DSB2018_Dataset(**dataset_kwargs)
-        dataset.add_nuclei(test_dir, 'test', shuffle = False)
+        dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False)
         dataset.prepare()
         return _config, dataset, model_name
 
@@ -214,8 +216,8 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
     colour_identifier = 'semantic_colour_gan' if include_gan else 'semantic_colour'
     colour_identifier = '_'.join((colour_identifier, 'res101' if architecture == 'resnet101' else 'res50'))
 
-    bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                            test_data_root = [test_dir],
+    bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                            test_data_root = [stage2_test_dir],
                             init_with = 'coco',
                             architecture = architecture,
                             mini_mask_shape = 12,
@@ -230,8 +232,8 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
                                                 'gaussian_blur': [-0.2, 0.2]})
 
 
-    colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                            test_data_root = [test_dir],
+    colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                            test_data_root = [stage2_test_dir],
                             init_with = 'coco',
                             architecture = architecture,
                             mini_mask_shape = 12,
@@ -277,6 +279,7 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
         # Training dataset
         dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
         dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
+        dataset_train.add_nuclei(test_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
         if include_gan:
             dataset_train.add_nuclei(gan_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
         for repeats in range(135//45):
@@ -303,11 +306,11 @@ def train_resnet_semantic_b_w_colour(training = True, architecture='resnet101', 
     else:
 
         bw_dataset = DSB2018_Dataset(**bw_dataset_kwargs)
-        bw_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([1]))
+        bw_dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False, target_colour_id = np.array([1]))
         bw_dataset.prepare()
 
         colour_dataset = DSB2018_Dataset(**colour_dataset_kwargs)
-        colour_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([2]))
+        colour_dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False, target_colour_id = np.array([2]))
         colour_dataset.prepare()
 
         bw_config.RPN_NMS_THRESHOLD = 0.7
@@ -337,8 +340,8 @@ def train_resnet_semantic_b_w_colour_maskcount_balanced(training = True, archite
     colour_identifier = '_'.join((colour_identifier, 'res101' if architecture == 'resnet101' else 'res50'))
 
 
-    bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                            test_data_root = [test_dir],
+    bw_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                            test_data_root = [stage2_test_dir],
                             init_with = 'coco',
                             architecture = architecture,
                             mini_mask_shape = 12,
@@ -354,8 +357,8 @@ def train_resnet_semantic_b_w_colour_maskcount_balanced(training = True, archite
                                                 'gaussian_blur': [-0.2, 0.2]})
 
 
-    colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []),
-                            test_data_root = [test_dir],
+    colour_config = mask_rcnn_config(train_data_root = [train_dir] + supplementary_dir + ([gan_dir] if include_gan else []) + [test_dir],
+                            test_data_root = [stage2_test_dir],
                             init_with = 'coco',
                             architecture = architecture,
                             mini_mask_shape = 12,
@@ -402,6 +405,7 @@ def train_resnet_semantic_b_w_colour_maskcount_balanced(training = True, archite
         # Training dataset
         dataset_train = DSB2018_Dataset(**colour_dataset_kwargs)
         dataset_train.add_nuclei(train_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
+        dataset_train.add_nuclei(test_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
         if include_gan:
             dataset_train.add_nuclei(gan_dir, 'train', split_ratio = 1., target_colour_id = np.array([2]))
         for repeats in range(135//45):
@@ -429,11 +433,11 @@ def train_resnet_semantic_b_w_colour_maskcount_balanced(training = True, archite
     else:
 
         bw_dataset = DSB2018_Dataset(**bw_dataset_kwargs)
-        bw_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([1]))
+        bw_dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False, target_colour_id = np.array([1]))
         bw_dataset.prepare()
 
         colour_dataset = DSB2018_Dataset(**colour_dataset_kwargs)
-        colour_dataset.add_nuclei(test_dir, 'test', shuffle = False, target_colour_id = np.array([2]))
+        colour_dataset.add_nuclei(stage2_test_dir, 'test', shuffle = False, target_colour_id = np.array([2]))
         colour_dataset.prepare()
 
         bw_config.RPN_NMS_THRESHOLD = 0.7
@@ -485,7 +489,7 @@ def train_resnet50_semantic_b_w_colour_maskcount_balanced_gan(training=True):
   return train_resnet_semantic_b_w_colour_maskcount_balanced(training=training, architecture='resnet50', include_gan = True)
 
 def main():
-
+    """
     train_resnet101_semantic()
     train_resnet50_semantic()
 
@@ -496,7 +500,7 @@ def main():
     train_resnet50_semantic_maskcount_balanced_gan()
 
     train_resnet50_semantic_gan()
-
+    """
     ######
 
     train_resnet101_semantic_b_w_colour()
@@ -505,10 +509,10 @@ def main():
     train_resnet101_semantic_b_w_colour_maskcount_balanced()
     train_resnet50_semantic_b_w_colour_maskcount_balanced()
 
-    train_resnet101_semantic_b_w_colour_maskcount_balanced_gan()
-    train_resnet50_semantic_b_w_colour_maskcount_balanced_gan()
+    #train_resnet101_semantic_b_w_colour_maskcount_balanced_gan()
+    #train_resnet50_semantic_b_w_colour_maskcount_balanced_gan()
 
-    train_resnet50_semantic_b_w_colour_gan()
+    #train_resnet50_semantic_b_w_colour_gan()
 
 
 
