@@ -20,7 +20,7 @@ import train
 import getpass
                     
 N_SPLITS   = 4
-THIS_SPLIT = 0 # from 0 to N_SPLITS-1
+THIS_SPLIT = 1 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -248,8 +248,8 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
 
         # Reduce dict to the relevant index to capture the relevant fields for anything
         # you haven't changed
-        img_results = du.reduce_dict(img_results, idx)
-     
+        img_results = du.reduce_dict(img_results, idx) if len(idx) > 0 else du.reduce_dict(img_results, 0)
+
         # Assign newly calculated fields
         img_results['rois'] = boxes
         img_results['masks'] = np.moveaxis(masks, -1, 0)
