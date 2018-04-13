@@ -248,7 +248,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
 
         # Reduce dict to the relevant index to capture the relevant fields for anything
         # you haven't changed
-        img_results = du.reduce_dict(img_results, idx) if len(idx) > 0 else du.reduce_dict(img_results, 0)
+        img_results = du.reduce_dict(img_results, idx if len(idx) > 0 else 0)
 
         # Assign newly calculated fields
         img_results['rois'] = boxes
@@ -615,6 +615,8 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
+                # Print interim update
+                f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble_interim', str(THIS_SPLIT), '.csv'))), ImageId, EncodedPixels)
 
     if create_submission:
         submission_filename = os.path.join(
