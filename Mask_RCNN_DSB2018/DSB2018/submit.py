@@ -19,7 +19,8 @@ import matplotlib.pyplot as plt
 import train
 import getpass
                     
-
+N_SPLITS   = 4
+THIS_SPLIT = 0 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -516,7 +517,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
    
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    for i in tqdm(range(0, n_images, batch_size)):
+    split_images = list(np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT])
+    print("Running split {} of {}".format(THIS_SPLIT+1,N_SPLITS))
+    for i in tqdm(split_images):
 
         batch_img_paths = img_paths[i : (i + batch_size)]
         if len(batch_img_paths) != batch_size:
@@ -602,7 +605,12 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 EncodedPixels += EncodedPixels_batch
 
     if create_submission:
-        f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv'))), ImageId, EncodedPixels)
+        submission_filename = os.path.join(
+            submissions_dir, 
+            '_'.join(
+                ('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '{}of{}'.format(THIS_SPLIT+1,N_SPLITS), '.csv')))
+
+        f.write2csv(submission_filename, ImageId, EncodedPixels)
 
 
 def merge_model_info(datasets):
