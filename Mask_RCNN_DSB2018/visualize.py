@@ -520,11 +520,14 @@ def image_with_labels(img, label, edge_colour = 255):
     img_color = (img_color * 255).astype(np.uint8) if np.max(img_color) <= 1 else img_color
 
     u_label = np.unique(label)
-    mask_edges = [cv2.Canny(((label == i) * 255).astype(np.uint8), 100, 200) > 0 for i in u_label[u_label != 0]]
-    mask_edges = np.max(np.array(mask_edges), axis = 0)
 
-    for i in range(3):
-        img_color[mask_edges, i] = edge_colour 
+    if np.any(u_label > 0):
+
+        mask_edges = [cv2.Canny(((label == i) * 255).astype(np.uint8), 100, 200) > 0 for i in u_label[u_label != 0]]
+        mask_edges = np.max(np.array(mask_edges), axis = 0)
+
+        for i in range(3):
+            img_color[mask_edges, i] = edge_colour 
 
     return img_color
 
