@@ -3584,7 +3584,7 @@ class BespokeMaskRCNN(MaskRCNN):
                 "class_ids": final_class_ids,
                 "scores": final_scores,
                 "masks": final_masks,
-                "semantic_masks": np.stack([final_semantic_masks] * final_masks.shape[-1], axis = -1) if expand_semantic else final_semantic_masks
+                "semantic_masks": np.stack([final_semantic_masks] * max(1, final_masks.shape[-1]), axis = -1) if expand_semantic else final_semantic_masks
             })
         return results
 
@@ -3645,7 +3645,7 @@ class BespokeMaskRCNN(MaskRCNN):
             # Convert neural network mask to full size mask
             full_masks.append(utils.unmold_mask(masks[i], boxes[i], image_shape))
         full_masks = np.stack(full_masks, axis=-1)\
-            if full_masks else np.empty((0,) + masks.shape[1:3])
+            if full_masks else np.empty(image_shape[:2] + (0,))
 
         full_semantic_masks = np.squeeze(self.unmold_maskrcnn_mask(semantic_mask, image_shape, window))
 

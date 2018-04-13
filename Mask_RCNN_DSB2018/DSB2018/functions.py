@@ -33,7 +33,7 @@ def numpy2encoding_no_overlap(predicts, img_name):
 
 def numpy2encoding_no_overlap_threshold(predicts, img_name, scores, threshold = 30):
 
-    if len(predicts) > 0:
+    if predicts.shape[-1] > 0:
 
         this_threshold = threshold + (threshold * (min(np.product(predicts.shape[:2]), (512 * 512)) - (256 * 256)) / (512 * 512))
         valid = np.sum(predicts, axis = (0, 1)) >= this_threshold

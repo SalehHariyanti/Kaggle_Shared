@@ -122,9 +122,9 @@ def reverse_scaling(results_scale, images, use_semantic):
         for j in range(len(results_scale)):
 
             results_scale[j][i]['masks'] = scipy.ndimage.zoom(results_scale[j][i]['masks'], 
-                                                              (images[i].shape[0] / results_scale[j][i]['masks'].shape[0], 
-                                                               images[i].shape[1] / results_scale[j][i]['masks'].shape[1], 
-                                                               1), order = 0)
+                                                                  (images[i].shape[0] / results_scale[j][i]['masks'].shape[0], 
+                                                                   images[i].shape[1] / results_scale[j][i]['masks'].shape[1], 
+                                                                   1), order = 0)
             results_scale[j][i]['rois'] = utils.extract_bboxes(results_scale[j][i]['masks'])
             # Reshape masks so that they can be concatenated correctly
             results_scale[j][i]['masks'] = np.moveaxis(results_scale[j][i]['masks'], -1, 0)
@@ -213,46 +213,58 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
     """
     results = deepcopy(img_results)
    
-    # Combine masks with overlaps greater than threshold
-    if use_semantic:
-        idx, boxes, scores, masks, n_joins, semantic_masks = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold, np.moveaxis(results['semantic_masks'], 0, -1))
-    else:
-        idx, boxes, scores, masks, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
+    # Reduce only if masks exist
+    if results['rois'].shape[0] > 0:
 
-    # Select masks based on voting threshold
-    avg_masks = masks / n_votes
-    masks = (np.multiply(masks, avg_masks > voting_threshold) > 0).astype(np.int)
-    valid_masks = np.sum(masks, axis = (0, 1)) > 0
+        # Combine masks with overlaps greater than threshold
+        if use_semantic:
+            idx, boxes, scores, masks, n_joins, semantic_masks = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold, np.moveaxis(results['semantic_masks'], 0, -1))
+        else:
+            idx, boxes, scores, masks, n_joins = du.combine_boxes(results['rois'], results['scores'].reshape(-1, ), np.moveaxis(results['masks'], 0, -1), threshold)
 
-    # Reduce to masks that are still valid
-    idx = idx[valid_masks]
-    boxes = boxes[valid_masks]
-    masks = masks[:, :, valid_masks]
-    scores = scores[valid_masks]
+        # Select masks based on voting threshold
+        avg_masks = masks / n_votes
+        masks = (np.multiply(masks, avg_masks > voting_threshold) > 0).astype(np.int)
+        valid_masks = np.sum(masks, axis = (0, 1)) > 0
 
-    if use_semantic:
-        # Reduce semantic masks according to valid_masks and voting_threshold
-        avg_semantic_masks = semantic_masks / n_votes
-        semantic_masks = (avg_semantic_masks[:, :, valid_masks] > voting_threshold).astype(np.int)
-        # Reduce to single semantic mask
-        semantic_masks = (np.sum(semantic_masks, axis = -1) > 0).astype(np.int)
+        # Reduce to masks that are still valid
+        idx = idx[valid_masks]
+        boxes = boxes[valid_masks]
+        masks = masks[:, :, valid_masks]
+        scores = scores[valid_masks]
 
-        masks = combine_semantic(boxes, scores, masks, semantic_masks, param_dict)
+        if use_semantic:
+            # Reduce semantic masks according to valid_masks and voting_threshold
+            avg_semantic_masks = semantic_masks / n_votes
+            semantic_masks = (avg_semantic_masks[:, :, valid_masks] > voting_threshold).astype(np.int)
+            # Reduce to single semantic mask
+            semantic_masks = (np.sum(semantic_masks, axis = -1) > 0).astype(np.int)
 
-    #from visualize import plot_multiple_images; plot_multiple_images([np.sum(img_results['masks'], axis = 0), np.sum(masks, axis = 0)], nrows = 1, ncols = 2)
+            masks = combine_semantic(boxes, scores, masks, semantic_masks, param_dict)
+
+        #from visualize import plot_multiple_images; plot_multiple_images([np.sum(img_results['masks'], axis = 0), np.sum(masks, axis = 0)], nrows = 1, ncols = 2)
     
-    # Assign results to img_results:
+        # Assign results to img_results:
 
-    # Reduce dict to the relevant index to capture the relevant fields for anything
-    # you haven't changed
-    img_results = du.reduce_dict(img_results, idx)
+        # Reduce dict to the relevant index to capture the relevant fields for anything
+        # you haven't changed
+        img_results = du.reduce_dict(img_results, idx)
      
-    # Assign newly calculated fields
-    img_results['rois'] = boxes
-    img_results['masks'] = np.moveaxis(masks, -1, 0)
-    img_results['scores'] = scores
-    if use_semantic:
-        img_results['semantic_masks'] = semantic_masks
+        # Assign newly calculated fields
+        img_results['rois'] = boxes
+        img_results['masks'] = np.moveaxis(masks, -1, 0)
+        img_results['scores'] = scores
+        if use_semantic:
+            img_results['semantic_masks'] = semantic_masks
+
+    else:
+        # No masks predicted
+
+        # Reduce to single semantic mask
+        if use_semantic:
+            results['semantic_masks'] = (np.sum(results['semantic_masks'], axis = 0) > 0).astype(np.int)
+
+        img_results = results
 
     return img_results
 
@@ -584,7 +596,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                     r[j]['masks'] = np.moveaxis(r[j]['masks'], -1, 0)
                     if use_semantic:
                         # semantic_masks is flat. We need to expand to the r[j]['masks'] dimensions
-                        r[j]['semantic_masks'] = np.stack([r[j]['semantic_masks']] * r[j]['masks'].shape[0], axis = 0)
+                        r[j]['semantic_masks'] = np.stack([r[j]['semantic_masks']] * max(1, r[j]['masks'].shape[0]), axis = 0)
                 
                 # Concatenate
                 img_results = du.concatenate_list_of_dicts([r[j] for r in res])
