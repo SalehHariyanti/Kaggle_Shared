@@ -20,7 +20,7 @@ import train
 import getpass
                     
 N_SPLITS   = 4
-THIS_SPLIT = 1 # from 0 to N_SPLITS-1
+THIS_SPLIT = 2 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -518,7 +518,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
     # Make sure that you have a full set of model mappings for each model set
     assert np.all([len(m) == len(model_infos[0]) for m in model_infos[1:]])
 
-    img_paths = np.array(list(model_infos[0].keys()))
+    img_paths = list(model_infos[0].keys())
+    img_paths.sort()
+    img_paths = np.array(img_paths)
     n_images = len(img_paths)
 
     # Set up holders for the submission rles which you will accumulate
@@ -720,9 +722,9 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 def main():
 
         predict_experiment([train.train_resnet101_semantic,
-                            train.train_resnet50_semantic,
-                            train.train_resnet101_semantic_maskcount_balanced,
-                            train.train_resnet50_semantic_maskcount_balanced,
+                            #train.train_resnet50_semantic,
+                            #train.train_resnet101_semantic_maskcount_balanced,
+                            #train.train_resnet50_semantic_maskcount_balanced,
                             #train.train_resnet101_semantic_maskcount_balanced_gan,
                             #train.train_resnet50_semantic_maskcount_balanced_gan,
                             #train.train_resnet50_semantic_gan
