@@ -20,7 +20,7 @@ import train
 import getpass
                     
 N_SPLITS   = 4
-THIS_SPLIT = 2 # from 0 to N_SPLITS-1
+THIS_SPLIT = 0 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -248,7 +248,7 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
 
         # Reduce dict to the relevant index to capture the relevant fields for anything
         # you haven't changed
-        img_results = du.reduce_dict(img_results, idx) if len(idx) > 0 else du.reduce_dict(img_results, 0)
+        img_results = du.reduce_dict(img_results, idx if len(idx) > 0 else 0)
 
         # Assign newly calculated fields
         img_results['rois'] = boxes
@@ -531,7 +531,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
    
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    split_images = list(np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT])
+    split_images = np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT]
     print("Running split {} of {}".format(THIS_SPLIT+1,N_SPLITS))
     for i in tqdm(split_images):
 
@@ -617,6 +617,8 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 ImageId_batch, EncodedPixels_batch = f.numpy2encoding_no_overlap_threshold(img_results['masks'], img_name, img_results['scores'])
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
+                # Print interim update
+                f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble_interim', str(THIS_SPLIT), '.csv'))), ImageId, EncodedPixels)
 
     if create_submission:
         submission_filename = os.path.join(
@@ -722,9 +724,9 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 def main():
 
         predict_experiment([train.train_resnet101_semantic,
-                            #train.train_resnet50_semantic,
-                            #train.train_resnet101_semantic_maskcount_balanced,
-                            #train.train_resnet50_semantic_maskcount_balanced,
+                            train.train_resnet50_semantic,
+                            train.train_resnet101_semantic_maskcount_balanced,
+                            train.train_resnet50_semantic_maskcount_balanced,
                             #train.train_resnet101_semantic_maskcount_balanced_gan,
                             #train.train_resnet50_semantic_maskcount_balanced_gan,
                             #train.train_resnet50_semantic_gan

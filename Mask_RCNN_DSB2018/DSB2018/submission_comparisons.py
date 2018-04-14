@@ -16,6 +16,7 @@ base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.jo
 
 data_dir = os.path.join(base_dir, 'data')
 test_dir = os.path.join(base_dir, 'test')
+stage2_test_dir  = os.path.join(base_dir, 'stage2_test_final')
 submissions_dir = os.path.join(base_dir, 'submissions')
 test_mosaics_dir = os.path.join(base_dir, 'test_mosaics')
 
@@ -48,7 +49,7 @@ def extract_data(file):
     return files_out, rles_out
 
 
-def compare_submissions(submission_files):
+def compare_submissions(submission_files, use_test_dir = test_dir):
 
     submissions_data = [extract_data(file) for file in submission_files]
 
@@ -57,7 +58,7 @@ def compare_submissions(submission_files):
 
     for i in range(len(submissions_filenames[0]) - 1, -1, -1):
         this_file = submissions_filenames[0][i]
-        test_img = load_img(os.path.join(test_dir, this_file, 'images', ''.join((this_file, '.png'))), greyscale = True)
+        test_img = load_img(os.path.join(use_test_dir, this_file, 'images', ''.join((this_file, '.png'))), greyscale = True)
         labels = [labels_from_rles(sr[np.argwhere(sf == this_file).reshape(-1,)][0], test_img.shape[:2])[0] for sr, sf in zip(submissions_rles, submissions_filenames)]
         plot_multiple_images([test_img] + [image_with_labels(test_img, l) for l in labels] + [image_with_masks(test_img, labels)], 
                              ['img'] + ['_'.join(('submission', str(i), str(np.max(l)))) for i, l in enumerate(labels)] + ['img_with_masks'], 
@@ -131,9 +132,7 @@ def main():
     else:
 
         # Overwrite filenames with the submissions you wish to compare
-        compare_submissions([os.path.join(submissions_dir, 'submission_ensemble_20180411223011_.csv'),
-                             os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_400_0.3_gment_semantic_bw_dim_o-tf-gauss--0.2--horiz-True-rots-True-verti-True_0.5_None_20180411104618_.csv'),
-                             os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_400_0.3_t_nsb_semantic_bw_dim_o-tf-gauss--0.2--horiz-True-rots-True-verti-True_0.5_None_20180411093443_.csv')])
+        compare_submissions([os.path.join(data_dir, 'submission_ensemble_interim_1_.csv')], use_test_dir = stage2_test_dir)
                              #os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408211013_.csv')])
         #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
         #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')
