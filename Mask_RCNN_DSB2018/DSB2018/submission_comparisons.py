@@ -120,6 +120,39 @@ def masks_for_test_mosaics(submission_dir):
                                 1, 3)
 
 
+def checks():
+    model_set_1 = [os.path.join(submissions_dir, 'MODEL SET 1', 'submission_ensemble_20180414105615_1of4_.csv'),
+                   os.path.join(submissions_dir, 'MODEL SET 1', 'submission_ensemble_20180414051931_2of4_.csv'),
+                   None,
+                   os.path.join(submissions_dir, 'MODEL SET 1', 'submission_ensemble_20180414000000_4of4_.csv')]
+
+    model_set_2 = [os.path.join(submissions_dir, 'MODEL SET 2', 'submission_ensemble_colourset_20180415045428_1of4_.csv'),
+                   os.path.join(submissions_dir, 'MODEL SET 2', 'submission_ensemble_colourset_20180415060710_2of4_.csv'),
+                   None,
+                   None]
+
+
+    for i, (m1, m2) in enumerate(zip(model_set_1, model_set_2)):
+
+        if m1 is not None and m2 is not None:
+
+            submissions_data = [extract_data(file) for file in [m1, m2]]
+            submissions_filenames = [x[0] for x in submissions_data]
+
+            set1 = np.unique(submissions_filenames[0])
+            set2 = np.unique(submissions_filenames[1])
+
+            print(' '.join(('THIS_SPLIT', str(i), 'Number of files set 1:', str(len(set1)))))
+            print(' '.join(('THIS_SPLIT', str(i), 'Number of files set 2:', str(len(set2)))))
+            print('Set 1 not in set 2:')
+            print(set1[np.logical_not(ismember(set1, set2, index_requested = False))])
+            print('Set 2 not in set 1:')
+            print(set2[np.logical_not(ismember(set2, set1, index_requested = False))])
+
+
+
+
+
 
 def main():
 
@@ -132,7 +165,9 @@ def main():
     else:
 
         # Overwrite filenames with the submissions you wish to compare
-        compare_submissions([os.path.join(data_dir, 'submission_ensemble_interim_1_.csv')], use_test_dir = stage2_test_dir, stepsize = 20)
+        compare_submissions([os.path.join(submissions_dir, 'MODEL_SET_1', 'submission_ensemble_20180414105615_1of4_.csv'),
+                             os.path.join(submissions_dir, 'MODEL_SET_2', 'submission_ensemble_colourset_20180415045428_1of4_.csv')], 
+                            use_test_dir = stage2_test_dir, stepsize = 20)
                              #os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408211013_.csv')])
         #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
         #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')

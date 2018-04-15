@@ -20,7 +20,7 @@ import train
 import getpass
                     
 N_SPLITS   = 4
-THIS_SPLIT = 1 # from 0 to N_SPLITS-1
+THIS_SPLIT = 2 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
