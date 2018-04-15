@@ -19,9 +19,16 @@ import matplotlib.pyplot as plt
 import train
 import getpass
                     
-N_SPLITS   = 4
-THIS_SPLIT = 2 # from 0 to N_SPLITS-1
+N_SPLITS   = 1
+THIS_SPLIT = 0 # from 0 to N_SPLITS-1
 SKIP_TO    = 0
+
+ONLY_IDS = { '1acbb82d2c4121c9667394e5770771f843d7a2c27d3dfeea48ad907af682134d', \
+             '44c7e5bdbc5d31831ba2708f4bccaa0249603f05be37c0781e1b3466bcef378b', \
+             'bcd810b3696dab97e113804d79808195a25df3d32c55ac6e7504483f18eabe4b', }
+
+MODEL_1 = True
+MODEL_2 = False
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -519,7 +526,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
     # Make sure that you have a full set of model mappings for each model set
     assert np.all([len(m) == len(model_infos[0]) for m in model_infos[1:]])
 
-    img_paths = np.array(list(model_infos[0].keys()))
+    img_paths = list(model_infos[0].keys())
+    img_paths.sort()
+    img_paths = np.array(img_paths)
     n_images = len(img_paths)
 
     # Set up holders for the submission rles which you will accumulate
@@ -538,6 +547,12 @@ def predict_voting(configs, datasets, model_names, epochs = None,
             continue
 
         batch_img_paths = img_paths[i : (i + batch_size)]
+
+        if ONLY_IDS:
+            _ids = set([batch_img_path[-68:-4] for batch_img_path in batch_img_paths])
+            if not ONLY_IDS.intersection(_ids):
+                continue
+
         if len(batch_img_paths) != batch_size:
             batch_img_paths = np.append(batch_img_paths, batch_img_paths[:(i + batch_size - len(img_paths))])
 
@@ -725,7 +740,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 def main():
 
-        if False:
+        if MODEL_1:
             predict_experiment([train.train_resnet101_semantic,
                                 train.train_resnet50_semantic,
                                 train.train_resnet101_semantic_maskcount_balanced,
@@ -742,7 +757,7 @@ def main():
                                                 'n_erode': 0},
                                 use_semantic = True)
 
-        if True:
+        if MODEL_2:
             predict_experiment([train.train_resnet101_semantic_b_w_colour,
                                 train.train_resnet50_semantic_b_w_colour,
                                 train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
@@ -758,8 +773,6 @@ def main():
                                                 'n_dilate': 1,
                                                 'n_erode': 0},
                                 use_semantic = True)
-
-
 
 if __name__ == '__main__':
     main()
