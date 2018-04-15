@@ -20,7 +20,7 @@ import train
 import getpass
                     
 N_SPLITS   = 4
-THIS_SPLIT = 0 # from 0 to N_SPLITS-1
+THIS_SPLIT = 3 # from 0 to N_SPLITS-1
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -722,7 +722,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-
+        """
         predict_experiment([train.train_resnet101_semantic,
                             train.train_resnet50_semantic,
                             train.train_resnet101_semantic_maskcount_balanced,
@@ -738,7 +738,7 @@ def main():
                                             'n_dilate': 1,
                                             'n_erode': 0},
                             use_semantic = True)
-
+        """
 
         predict_experiment([train.train_resnet101_semantic_b_w_colour,
                             train.train_resnet50_semantic_b_w_colour,
