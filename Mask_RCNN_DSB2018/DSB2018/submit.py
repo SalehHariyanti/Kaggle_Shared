@@ -19,8 +19,16 @@ import matplotlib.pyplot as plt
 import train
 import getpass
                     
-N_SPLITS   = 4
-THIS_SPLIT = 2 # from 0 to N_SPLITS-1
+N_SPLITS   = 1
+THIS_SPLIT = 0 # from 0 to N_SPLITS-1
+SKIP_TO    = 0
+
+ONLY_IDS = { '1acbb82d2c4121c9667394e5770771f843d7a2c27d3dfeea48ad907af682134d', \
+             '44c7e5bdbc5d31831ba2708f4bccaa0249603f05be37c0781e1b3466bcef378b', \
+             'bcd810b3696dab97e113804d79808195a25df3d32c55ac6e7504483f18eabe4b', }
+
+MODEL_1 = True
+MODEL_2 = False
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -531,11 +539,20 @@ def predict_voting(configs, datasets, model_names, epochs = None,
    
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    split_images = np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT]
+    split_images = list(np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT])
     print("Running split {} of {}".format(THIS_SPLIT+1,N_SPLITS))
-    for i in tqdm(split_images):
+    for _i_, i in enumerate(tqdm(split_images)):
+
+        if _i_ < SKIP_TO:
+            continue
 
         batch_img_paths = img_paths[i : (i + batch_size)]
+
+        if ONLY_IDS:
+            _ids = set([batch_img_path[-68:-4] for batch_img_path in batch_img_paths])
+            if not ONLY_IDS.intersection(_ids):
+                continue
+
         if len(batch_img_paths) != batch_size:
             batch_img_paths = np.append(batch_img_paths, batch_img_paths[:(i + batch_size - len(img_paths))])
 
@@ -722,41 +739,40 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-        """
-        predict_experiment([train.train_resnet101_semantic,
-                            train.train_resnet50_semantic,
-                            train.train_resnet101_semantic_maskcount_balanced,
-                            train.train_resnet50_semantic_maskcount_balanced,
-                            #train.train_resnet101_semantic_maskcount_balanced_gan,
-                            #train.train_resnet50_semantic_maskcount_balanced_gan,
-                            #train.train_resnet50_semantic_gan
-                            ],
-                           'predict_voting',
-                            augment_flips = True, augment_scale = True,
-                            nms_threshold = 0.5, voting_threshold = 0.5,
-                            param_dict = {'scales': [0.85, 0.9, 0.95],
-                                            'n_dilate': 1,
-                                            'n_erode': 0},
-                            use_semantic = True)
 
-        """
-        predict_experiment([train.train_resnet101_semantic_b_w_colour,
-                            train.train_resnet50_semantic_b_w_colour,
-                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
-                            train.train_resnet50_semantic_b_w_colour_maskcount_balanced,
-                            #train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
-                            #train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
-                            #train.train_resnet50_semantic_b_w_colour_gan
-                            ],
-                           'predict_voting',
-                            augment_flips = True, augment_scale = True,
-                            nms_threshold = 0.5, voting_threshold = 0.5,
-                            param_dict = {'scales': [0.85, 0.9, 0.95],
-                                            'n_dilate': 1,
-                                            'n_erode': 0},
-                            use_semantic = True)
+        if MODEL_1:
+            predict_experiment([train.train_resnet101_semantic,
+                                train.train_resnet50_semantic,
+                                train.train_resnet101_semantic_maskcount_balanced,
+                                train.train_resnet50_semantic_maskcount_balanced,
+                                #train.train_resnet101_semantic_maskcount_balanced_gan,
+                                #train.train_resnet50_semantic_maskcount_balanced_gan,
+                                #train.train_resnet50_semantic_gan
+                                ],
+                               'predict_voting',
+                                augment_flips = True, augment_scale = True,
+                                nms_threshold = 0.5, voting_threshold = 0.5,
+                                param_dict = {'scales': [0.85, 0.9, 0.95],
+                                                'n_dilate': 1,
+                                                'n_erode': 0},
+                                use_semantic = True)
 
-
+        if MODEL_2:
+            predict_experiment([train.train_resnet101_semantic_b_w_colour,
+                                train.train_resnet50_semantic_b_w_colour,
+                                train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
+                                train.train_resnet50_semantic_b_w_colour_maskcount_balanced,
+                                #train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
+                                #train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
+                                #train.train_resnet50_semantic_b_w_colour_gan
+                                ],
+                               'predict_voting',
+                                augment_flips = True, augment_scale = True,
+                                nms_threshold = 0.5, voting_threshold = 0.5,
+                                param_dict = {'scales': [0.85, 0.9, 0.95],
+                                                'n_dilate': 1,
+                                                'n_erode': 0},
+                                use_semantic = True)
 
 if __name__ == '__main__':
     main()
