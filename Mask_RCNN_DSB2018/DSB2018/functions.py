@@ -60,6 +60,10 @@ def numpy2encoding_no_overlap_threshold(predicts, img_name, scores, threshold = 
         ImageId = [img_name]
         EncodedPixels = ['']
 
+    if len(ImageId) == 0:
+        ImageId = [img_name]
+        EncodedPixels = ['']
+
     return ImageId, EncodedPixels
 
 

@@ -19,16 +19,16 @@ import matplotlib.pyplot as plt
 import train
 import getpass
                     
-N_SPLITS   = 1
-THIS_SPLIT = 0 # from 0 to N_SPLITS-1
+N_SPLITS   = 4
+THIS_SPLIT = 2 # from 0 to N_SPLITS-1
 SKIP_TO    = 0
 
-ONLY_IDS = { '1acbb82d2c4121c9667394e5770771f843d7a2c27d3dfeea48ad907af682134d', \
-             '44c7e5bdbc5d31831ba2708f4bccaa0249603f05be37c0781e1b3466bcef378b', \
-             'bcd810b3696dab97e113804d79808195a25df3d32c55ac6e7504483f18eabe4b', }
+ONLY_IDS = {}#{ '1acbb82d2c4121c9667394e5770771f843d7a2c27d3dfeea48ad907af682134d', \
+             #'44c7e5bdbc5d31831ba2708f4bccaa0249603f05be37c0781e1b3466bcef378b', \
+             #'bcd810b3696dab97e113804d79808195a25df3d32c55ac6e7504483f18eabe4b', }
 
-MODEL_1 = True
-MODEL_2 = False
+MODEL_1 = False
+MODEL_2 = True
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -147,6 +147,17 @@ def reverse_scaling(results_scale, images, use_semantic):
 
 
     return results_scale
+
+
+def rescale_masks(masks, scale):
+    """
+    Convert masks -> labels before applying scipy.ndimage.zoom() once,
+    then convert the resulting labels -> masks.
+    Large speed up for masks where number of masks is great.
+    """
+    labels = du.maskrcnn_mask_to_labels(masks)
+    rescaled_labels = scipy.ndimage.zoom(masks, scale, order = 0)
+    return du.maskrcnn_labels_to_mask(rescaled_labels).astype(np.uint8)
 
 
 def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, param_dict = {}, use_nms = False, use_semantic = False):
