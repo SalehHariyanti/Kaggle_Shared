@@ -16,7 +16,6 @@ train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test') 
 supplementary_data_dir = [os.path.join(base_dir, 'train_external', 'ISBI'),
                           os.path.join(base_dir, 'train_external', 'nsb')]
-gan_dir = os.path.join(base_dir, 'train_external', 'GAN')
 stage2_test_dir = os.path.join(base_dir, 'stage2_test_final') 
 
 
@@ -388,7 +387,7 @@ def infer_maskcount_id(n_masks):
 def run(save_filename, source_dirs=None, extra_dirs_for_clustering=None, run_hsv_clustering = False):
 
     if source_dirs is None:
-        source_dirs = [train_dir] + [test_dir] + supplementary_data_dir + [gan_dir]
+        source_dirs = [train_dir] + [test_dir] + supplementary_data_dir
 
     # Basic properties of images/masks. 
     all_df = read_data_properties(source_dirs, IMG_DIR_NAME) 
