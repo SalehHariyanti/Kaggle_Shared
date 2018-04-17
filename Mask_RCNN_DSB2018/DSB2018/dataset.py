@@ -9,7 +9,7 @@ import imageio
 import skimage
 from scipy import ndimage
 import os
-from settings import train_dir, data_dir, train_group_id_file, test_group_id_file, supplementary_group_id_file, gan_group_id_file, stage2_test_group_id_file
+from settings import train_dir, data_dir, train_group_id_file, test_group_id_file, supplementary_group_id_file, stage2_test_group_id_file
 import pandas as pd
 import dsb2018_utils as du
 import glob

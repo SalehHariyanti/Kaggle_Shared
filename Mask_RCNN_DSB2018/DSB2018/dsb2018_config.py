@@ -30,6 +30,7 @@ def get_available_gpus():
 
 base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
    
+
 class mask_rcnn_config(config.Config):
 
     def __init__(self, init_with = 'coco',

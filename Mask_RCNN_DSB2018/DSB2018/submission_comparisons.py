@@ -14,7 +14,7 @@ import functions as f
 import getpass
 USER = getpass.getuser()
 
-base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if USER == 'User' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 data_dir = os.path.join(base_dir, 'data')
 test_dir = os.path.join(base_dir, 'test')
@@ -24,7 +24,6 @@ test_mosaics_dir = os.path.join(base_dir, 'test_mosaics')
 
 #############
 # Comparing submission outputs
-
 
 
 def extract_data(file):
@@ -210,22 +209,11 @@ def correct_submission(submission_file, use_test_dir = test_dir):
 
 def main():
 
-    if USER == 'antor':
-        subs = [
-            'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406203610_.csv', 
-            'submission_DSB2018_512_512_True_12_28_256_0.3_gment_flips_rots_color_balanced_dim_o-tf-horiz-True-rots-True-verti-True_0_80_20180407075023_.csv',
-        ]
-        compare_submissions([os.path.join(submissions_dir,sub) for sub in subs])
-    else:
-        #problem_files = validate_submission(os.path.join(submissions_dir, 'submission_model1.csv'), use_test_dir = stage2_test_dir)
-        problem_files = correct_submission(os.path.join(submissions_dir, 'submission_model1.csv'), use_test_dir = stage2_test_dir)
-        new_problem_files = validate_submission(os.path.join(submissions_dir, 'submission_model1_CORRECTED.csv'), use_test_dir = stage2_test_dir)
-        # Overwrite filenames with the submissions you wish to compare
-        compare_submissions([os.path.join(submissions_dir, 'submission_ensemble_colourset_20180415045428_1of4_.csv'),
-                             os.path.join(submissions_dir, 'submission_model1_CORRECTED.csv')], use_test_dir = stage2_test_dir, stepsize = 20)
-                             
-        #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
-        #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')
+    subs = [
+        'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-verti-True_0.5_None_20180406203610_.csv', 
+        'submission_DSB2018_512_512_True_12_28_256_0.3_gment_flips_rots_color_balanced_dim_o-tf-horiz-True-rots-True-verti-True_0_80_20180407075023_.csv',
+    ]
+    compare_submissions([os.path.join(submissions_dir, sub) for sub in subs])
 
 if __name__ == '__main__':
     main()

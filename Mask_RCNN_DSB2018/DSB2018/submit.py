@@ -19,16 +19,6 @@ import matplotlib.pyplot as plt
 import train
 import getpass
                     
-N_SPLITS   = 1
-THIS_SPLIT = 0 # from 0 to N_SPLITS-1
-SKIP_TO    = 0
-
-ONLY_IDS = { '1acbb82d2c4121c9667394e5770771f843d7a2c27d3dfeea48ad907af682134d', \
-             '44c7e5bdbc5d31831ba2708f4bccaa0249603f05be37c0781e1b3466bcef378b', \
-             'bcd810b3696dab97e113804d79808195a25df3d32c55ac6e7504483f18eabe4b', }
-
-MODEL_1 = True
-MODEL_2 = False
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
 
@@ -149,6 +139,17 @@ def reverse_scaling(results_scale, images, use_semantic):
     return results_scale
 
 
+def rescale_masks(masks, scale):
+    """
+    Convert masks -> labels before applying scipy.ndimage.zoom() once,
+    then convert the resulting labels -> masks.
+    Large speed up for masks where number of masks is great.
+    """
+    labels = du.maskrcnn_mask_to_labels(masks)
+    rescaled_labels = scipy.ndimage.zoom(masks, scale, order = 0)
+    return du.maskrcnn_labels_to_mask(rescaled_labels).astype(np.uint8)
+
+
 def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, threshold, voting_threshold = 0.5, param_dict = {}, use_nms = False, use_semantic = False):
     """
     Augments images subject to list_fn_apply and combines results via 
@@ -192,7 +193,7 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
     if not isinstance(results_augment, list):
         results_augment = [[results_augment]]
 
-    # Carry out either non-maximum suppression or merge+voting to reduce results_flip for each image to a single set of results
+    # Carry out either non-maximum suppression or merge+voting to reduce results_augment for each image to a single set of results
     results = combine_results(results_augment, len(images), threshold, voting_threshold, param_dict, use_nms, use_semantic)
 
     return results
@@ -279,8 +280,9 @@ def reduce_via_voting(img_results, threshold, voting_threshold, param_dict, use_
 
 def combine_semantic(boxes, scores, masks, semantic_masks, param_dict):
     """
-    For each semantic_mask pixel that falls within the box of a mask
-    we assign that pixel to the mask with the highest score.
+    Each mask lies between an eroded version of itself and 
+    a dilated version of itself, the pixels in between 
+    being dictated by the overlap with semantic.
     """
 
     n_dilate = param_dict['n_dilate'] if 'n_dilate' in param_dict else 1
@@ -290,10 +292,7 @@ def combine_semantic(boxes, scores, masks, semantic_masks, param_dict):
 
         # Make a mask of box labels
         box_labels = du.maskrcnn_boxes_to_labels(boxes, scores, semantic_masks.shape)
-
-        # Each mask lies between an eroded version of itself and 
-        # a dilated version of itself, the pixels in between 
-        # being dictated by the overlap with semantic.
+        
         for i in range(masks.shape[-1]):
 
             # Step 1: find the overlap with semantic. 
@@ -503,7 +502,7 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                   save_predictions = False, create_submission = True):
     """
     Predicts an ensemble over multiple models via voting
-    Presently assumes that model_name/augment_flips/scale/param_dict/threshold/use_semantic are the same 
+    Presently assumes that augment_flips/scale/param_dict/threshold/use_semantic are the same 
     for all models you want to ensemble. Need to reformat to make these specific to each model.
     Allows for cases where a single model is made up of multiple submodels that apply to different images.
     """
@@ -539,19 +538,9 @@ def predict_voting(configs, datasets, model_names, epochs = None,
    
     # NB: we need to predict in batches of _config.BATCH_SIZE
     # as there are layers within the model that have strides dependent on this.
-    split_images = list(np.array_split(range(0, n_images, batch_size), N_SPLITS)[THIS_SPLIT])
-    print("Running split {} of {}".format(THIS_SPLIT+1,N_SPLITS))
-    for _i_, i in enumerate(tqdm(split_images)):
-
-        if _i_ < SKIP_TO:
-            continue
+    for i in tqdm(range(0, n_images, batch_size)):
 
         batch_img_paths = img_paths[i : (i + batch_size)]
-
-        if ONLY_IDS:
-            _ids = set([batch_img_path[-68:-4] for batch_img_path in batch_img_paths])
-            if not ONLY_IDS.intersection(_ids):
-                continue
 
         if len(batch_img_paths) != batch_size:
             batch_img_paths = np.append(batch_img_paths, batch_img_paths[:(i + batch_size - len(img_paths))])
@@ -678,7 +667,6 @@ def gather_images(datasets, batch_img_paths):
     """
     For a given batch of image paths, get the relevant raw data
     from the datasets.
-    NB: if 
     """
     n_batch = len(batch_img_paths)
 
@@ -740,39 +728,31 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 def main():
 
-        if MODEL_1:
-            predict_experiment([train.train_resnet101_semantic,
-                                train.train_resnet50_semantic,
-                                train.train_resnet101_semantic_maskcount_balanced,
-                                train.train_resnet50_semantic_maskcount_balanced,
-                                #train.train_resnet101_semantic_maskcount_balanced_gan,
-                                #train.train_resnet50_semantic_maskcount_balanced_gan,
-                                #train.train_resnet50_semantic_gan
-                                ],
-                               'predict_voting',
-                                augment_flips = True, augment_scale = True,
-                                nms_threshold = 0.5, voting_threshold = 0.5,
-                                param_dict = {'scales': [0.85, 0.9, 0.95],
-                                                'n_dilate': 1,
-                                                'n_erode': 0},
-                                use_semantic = True)
+        predict_experiment([train.train_resnet101_semantic,
+                            train.train_resnet50_semantic,
+                            train.train_resnet101_semantic_maskcount_balanced,
+                            train.train_resnet50_semantic_maskcount_balanced
+                            ],
+                            'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
 
-        if MODEL_2:
-            predict_experiment([train.train_resnet101_semantic_b_w_colour,
-                                train.train_resnet50_semantic_b_w_colour,
-                                train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
-                                train.train_resnet50_semantic_b_w_colour_maskcount_balanced,
-                                #train.train_resnet101_semantic_b_w_colour_maskcount_balanced_gan,
-                                #train.train_resnet50_semantic_b_w_colour_maskcount_balanced_gan,
-                                #train.train_resnet50_semantic_b_w_colour_gan
-                                ],
-                               'predict_voting',
-                                augment_flips = True, augment_scale = True,
-                                nms_threshold = 0.5, voting_threshold = 0.5,
-                                param_dict = {'scales': [0.85, 0.9, 0.95],
-                                                'n_dilate': 1,
-                                                'n_erode': 0},
-                                use_semantic = True)
+        predict_experiment([train.train_resnet101_semantic_b_w_colour,
+                            train.train_resnet50_semantic_b_w_colour,
+                            train.train_resnet101_semantic_b_w_colour_maskcount_balanced,
+                            train.train_resnet50_semantic_b_w_colour_maskcount_balanced
+                            ],
+                            'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
 
 if __name__ == '__main__':
     main()
