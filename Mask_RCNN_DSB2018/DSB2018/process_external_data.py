@@ -113,7 +113,6 @@ def process_nuclei_segmentation_benchmark(dir = os.path.join(base_dir, 'external
                 mask = Image.fromarray(mask)
                 mask.save(mask_filepath)
 
-
     # Save originals to new training dirs
     new_dir = os.path.join(base_dir, 'train_external', 'nsb')
 
@@ -134,67 +133,7 @@ def process_nuclei_segmentation_benchmark(dir = os.path.join(base_dir, 'external
         # Copy the masks
         for mask in os.listdir(os.path.join(mask_dir, f)):
             copyfile(os.path.join(mask_dir, f, mask), os.path.join(new_dir, f, 'masks', mask))
-
-
-    # Crops from same set
-    crops_dir = os.path.join(base_dir, 'train_external', '_'.join(('nsb', 'crop')))
-    if not os.path.exists(crops_dir):
-        os.makedirs(crops_dir)
-
-    for f in file_ids:
-
-        img = load_img(os.path.join(new_dir, f, 'images', '.'.join((f, 'png'))))
-        mask_filenames = [os.path.join(new_dir, f, 'masks', file) for file in os.listdir(os.path.join(new_dir, f, 'masks'))]
-        masks = [load_img(file)[:, :, 0] for file in mask_filenames]
-        all_masks = (np.sum(np.dstack(masks), axis = -1) > 0).astype(np.int)
-        all_crops = all_masks * 0
-
-        for crop in range(n_crops):
-
-            crop_file = '_'.join((f, 'crop', str(crop)))
-
-            index_found = False
-            counter = 0
-            while not index_found:
-                counter += 1
-                rnd_mask, crop_index = random_crop(all_masks, (np.random.randint(256, 512), np.random.randint(256, 512)))
-             
-                new_crop = np.zeros_like(all_crops)
-                new_crop[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3]] = 1
-
-                # Only take the crop if it covers 5% of the masks in the image and if it doesn't overlap more than 30% with crops 
-                # that we have already taken
-                if ((np.sum(rnd_mask) > np.sum(all_masks > 0) * 0.05) and (np.sum(new_crop * all_crops) < 0.3 * np.sum(new_crop))):
-                    index_found = True
-                    all_crops[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3]] = 1
-                elif counter == 100:
-                    index_found = True
-                    
-            # import visualisation as vis
-            # vis.plot_multiple_images([img[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3], :], masks[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3]], vis.image_with_masks(img[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3], :], [masks[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3]]])], ['img', 'masks', 'img_masks'], 1, 3)
-            if counter < 100:
-                
-                if not os.path.exists(os.path.join(crops_dir, crop_file, 'images')):
-                    os.makedirs(os.path.join(crops_dir, crop_file, 'images'))
-
-                rnd_img = Image.fromarray(img[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3], :])
-                rnd_img.save(os.path.join(crops_dir, crop_file, 'images', ''.join((crop_file, '.png'))))
-
-                rnd_mask = [m[crop_index[0] : crop_index[2], crop_index[1] : crop_index[3]] for m in masks]
-                rnd_mask = [m for m in rnd_mask if np.sum(m) > 0]
-
-                # save individual masks as png
-                mask_filepaths = [os.path.join(crops_dir, crop_file, 'masks', ''.join((crop_file, '_', str(i), '.png'))) for i in range(len(rnd_mask))]
-
-                for mask_filepath, mask in zip(mask_filepaths, rnd_mask):
-
-                    mask = Image.fromarray(mask)
-
-                    if not os.path.exists(os.path.split(mask_filepath)[0]):
-                        os.makedirs(os.path.split(mask_filepath)[0])
-                                  
-                    mask.save(mask_filepath)
-        
+  
     
 def load_img(filename, greyscale = False):
 
