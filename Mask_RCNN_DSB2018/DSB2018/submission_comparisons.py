@@ -51,14 +51,14 @@ def extract_data(file):
     return files_out, rles_out
 
 
-def compare_submissions(submission_files, use_test_dir = test_dir):
+def compare_submissions(submission_files, use_test_dir = test_dir, stepsize = 1):
 
     submissions_data = [extract_data(file) for file in submission_files]
 
     submissions_filenames = [x[0] for x in submissions_data]
     submissions_rles = [x[1] for x in submissions_data]
 
-    for i in range(len(submissions_filenames[0]) - 1, -1, -1):
+    for i in range(len(submissions_filenames[0]) - 1, -1, -stepsize):
         this_file = submissions_filenames[0][i]
         test_img = load_img(os.path.join(use_test_dir, this_file, 'images', ''.join((this_file, '.png'))), greyscale = True)
         labels = [labels_from_rles(sr[np.argwhere(sf == this_file).reshape(-1,)][0], test_img.shape[:2])[0] for sr, sf in zip(submissions_rles, submissions_filenames)]
@@ -221,8 +221,9 @@ def main():
         problem_files = correct_submission(os.path.join(submissions_dir, 'submission_model1.csv'), use_test_dir = stage2_test_dir)
         new_problem_files = validate_submission(os.path.join(submissions_dir, 'submission_model1_CORRECTED.csv'), use_test_dir = stage2_test_dir)
         # Overwrite filenames with the submissions you wish to compare
-        #compare_submissions([os.path.join(data_dir, 'submission_ensemble_interim_1_.csv')], use_test_dir = stage2_test_dir)
-                             #os.path.join(submissions_dir, 'submission_DSB2018_512_512_True_12_28_256_0.3_gment_double_invert_dim_o-tf-horiz-True-rots-True-verti-True-zoom_-0.8-1_0.5_25_20180408211013_.csv')])
+        compare_submissions([os.path.join(submissions_dir, 'submission_ensemble_colourset_20180415045428_1of4_.csv'),
+                             os.path.join(submissions_dir, 'submission_model1_CORRECTED.csv')], use_test_dir = stage2_test_dir, stepsize = 20)
+                             
         #mosaics_from_submissions('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404212329')
         #masks_for_test_mosaics('D:/Kaggle/Data_Science_Bowl_2018/data/DSB2018_512_512_True_12_28_256_0.3_gment_2inv_mos_dim_o-tf-horiz-True-rots-True-verti-True_1.0/submission_20180404233819')
 

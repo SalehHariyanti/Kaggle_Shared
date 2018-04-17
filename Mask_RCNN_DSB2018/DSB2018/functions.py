@@ -63,7 +63,6 @@ def numpy2encoding_no_overlap_threshold(predicts, img_name, scores, threshold = 
     return ImageId, EncodedPixels
 
 
-
 def write2csv(file, ImageId, EncodedPixels):
     df = pd.DataFrame({ 'ImageId' : ImageId , 'EncodedPixels' : EncodedPixels})
     df.to_csv(file, index=False, columns=['ImageId', 'EncodedPixels'])

@@ -270,16 +270,14 @@ def get_ids(file_id):
     assert os.path.exists(train_group_id_file)
     assert os.path.exists(supplementary_group_id_file)
     assert os.path.exists(test_group_id_file)
-    assert os.path.exists(gan_group_id_file)
     assert os.path.exists(stage2_test_group_id_file)
 
     train_df = pd.read_csv(train_group_id_file)
     supplementary_df = pd.read_csv(supplementary_group_id_file)
     test_df = pd.read_csv(test_group_id_file)
-    gan_df = pd.read_csv(gan_group_id_file)
     stage2_test_df = pd.read_csv(stage2_test_group_id_file)
 
-    mosaic_df = pd.concat([train_df, supplementary_df, test_df, gan_df, stage2_test_df])
+    mosaic_df = pd.concat([train_df, supplementary_df, test_df, stage2_test_df])
 
     mosaic_file_id = np.array(mosaic_df['img_id'])
     mosaic_idx = np.array(mosaic_df['mosaic_idx'])
