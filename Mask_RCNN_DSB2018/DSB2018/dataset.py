@@ -35,7 +35,7 @@ class DSB2018_Dataset(utils.Dataset):
         self.to_grayscale = to_grayscale
         self.cache = cache
 
-    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, shuffle = True, target_cluster_id = None, target_maskcount_id = None, target_colour_id = None, use_mosaics=False):
+    def add_nuclei(self, root_dirs, mode, split_ratio=0.9, kfold = 0, shuffle = True, target_cluster_id = None, target_maskcount_id = None, target_colour_id = None, use_mosaics=False):
         # Add classes
         self.add_class("nuclei", 1, "nuclei") # source, id, name. id = 0s is BG
 
@@ -52,18 +52,21 @@ class DSB2018_Dataset(utils.Dataset):
         image_names.sort()
 
         if shuffle:
-            image_names = list(np.random.permutation(image_names))
+            image_names = np.random.permutation(image_names)
         
         length = len(image_names)
-        train_item_len = math.floor(split_ratio*length)
-
+        split_idx = np.arange(length)
+        split_images = np.array_split(split_idx, math.floor(1 / (1 - split_ratio)))[kfold] if split_ratio < 1. else split_idx
+        
         if mode == 'train':
-            image_names = image_names[:train_item_len]
+            image_names = image_names[np.logical_not(du.ismember(split_idx, split_images, index_requested = False))]
         if mode == 'val':
-            image_names = image_names[train_item_len:]
+            image_names = image_names[du.ismember(split_idx, split_images, index_requested = False)]
         if mode == 'val_as_test':
-            image_names = image_names[train_item_len:]     
+            image_names = image_names[du.ismember(split_idx, split_images, index_requested = False)]     
             mode = 'test'
+
+        image_names = list(image_names)
 
         if use_mosaics is False:
 

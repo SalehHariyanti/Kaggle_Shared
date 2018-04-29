@@ -14,7 +14,7 @@ import functions as f
 import getpass
 USER = getpass.getuser()
 
-base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if USER == 'User' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 data_dir = os.path.join(base_dir, 'data')
 test_dir = os.path.join(base_dir, 'test')

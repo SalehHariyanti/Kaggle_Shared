@@ -10,7 +10,7 @@ import cv2
 from shutil import copyfile
 
 # Directory set up
-base_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+base_dir = 'D:/Kaggle/Data_Science_Bowl_2018' if os.name == 'nt' else os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
 #os.path.join(base_dir, 'external_data', 'ISBI', 'TrainTestAnnotations', 'Dataset', 'EDF') =>  https://cs.adelaide.edu.au/~carneiro/isbi14_challenge/dataset.html 
 #os.path.join(base_dir, 'external_data', 'nuclei_segmentation_benchmark') => https://nucleisegmentationbenchmark.weebly.com/

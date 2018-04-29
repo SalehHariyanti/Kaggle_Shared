@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 
 import train
 import getpass
+import time
                     
 
 def combine_results(_results, N, iou_threshold, voting_threshold, param_dict, use_nms, use_semantic):
@@ -114,7 +115,6 @@ def apply_scaling(_config, images, param_dict):
 
 
 def reverse_scaling(results_scale, images, use_semantic):
-
     # Reverse the scales
     for i in range(len(images)):
         for j in range(len(results_scale)):
@@ -134,7 +134,6 @@ def reverse_scaling(results_scale, images, use_semantic):
                                                                    1), order = 0)
                 # Reshape masks so that they can be concatenated correctly
                 results_scale[j][i]['semantic_masks'] = np.moveaxis(results_scale[j][i]['semantic_masks'], -1, 0)
-
 
     return results_scale
 
@@ -162,7 +161,6 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
     images_info = [globals()[fn_apply](_config, images, param_dict) for fn_apply in list_fn_apply]
 
     results_augment = []
-
     for img_info in images_info:
         
         # Each img_info set corresponds to a set of augmentations.
@@ -195,7 +193,7 @@ def maskrcnn_detect_augmentations(_config, model, images, list_fn_apply, thresho
 
     # Carry out either non-maximum suppression or merge+voting to reduce results_augment for each image to a single set of results
     results = combine_results(results_augment, len(images), threshold, voting_threshold, param_dict, use_nms, use_semantic)
-
+    
     return results
 
 
@@ -591,7 +589,6 @@ def predict_voting(configs, datasets, model_names, epochs = None,
 
             # r now contains the results for the images in the batch
             res.append(r)
-        
         # Reduce to N images
         for j, idx in enumerate(range(i, i + batch_size)):      
 
@@ -624,13 +621,13 @@ def predict_voting(configs, datasets, model_names, epochs = None,
                 ImageId += ImageId_batch
                 EncodedPixels += EncodedPixels_batch
                 # Print interim update
-                f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble_interim', str(THIS_SPLIT), '.csv'))), ImageId, EncodedPixels)
-
+                f.write2csv(os.path.join(submissions_dir, '_'.join(('submission_ensemble_interim', '.csv'))), ImageId, EncodedPixels)
+        
     if create_submission:
         submission_filename = os.path.join(
             submissions_dir, 
             '_'.join(
-                ('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '{}of{}'.format(THIS_SPLIT+1,N_SPLITS), '.csv')))
+                ('submission_ensemble', datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '.csv')))
 
         f.write2csv(submission_filename, ImageId, EncodedPixels)
 
@@ -727,7 +724,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-
+        
         predict_experiment([train.train_resnet101_semantic,
                             train.train_resnet50_semantic,
                             train.train_resnet101_semantic_maskcount_balanced,
@@ -753,6 +750,16 @@ def main():
                                             'n_dilate': 1,
                                             'n_erode': 0},
                             use_semantic = True)
+        """
+        predict_experiment(train.train_resnet_semantic_kfold,
+                            'predict_voting',
+                            augment_flips = True, augment_scale = True,
+                            nms_threshold = 0.5, voting_threshold = 0.5,
+                            param_dict = {'scales': [0.85, 0.9, 0.95],
+                                            'n_dilate': 1,
+                                            'n_erode': 0},
+                            use_semantic = True)
+        """
 
 if __name__ == '__main__':
     main()
