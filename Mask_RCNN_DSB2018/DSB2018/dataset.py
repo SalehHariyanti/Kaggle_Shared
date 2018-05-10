@@ -56,7 +56,7 @@ class DSB2018_Dataset(utils.Dataset):
         
         length = len(image_names)
         split_idx = np.arange(length)
-        split_images = np.array_split(split_idx, math.floor(1 / (1 - split_ratio)))[kfold] if split_ratio < 1. else split_idx
+        split_images = np.array_split(split_idx, math.floor(1 / (1 - split_ratio)))[kfold] if split_ratio < 1. else np.array([])
         
         if mode == 'train':
             image_names = image_names[np.logical_not(du.ismember(split_idx, split_images, index_requested = False))]

@@ -3517,6 +3517,7 @@ class XY_ImageDataGenerator(object):
                  gaussian_blur = None,
                  x_noise = 0.,
                  y_gaussian_blur = None,
+                 random_invert = False,
                  dim_ordering='default'):
         if dim_ordering == 'default':
             dim_ordering = K.image_dim_ordering()
@@ -3532,6 +3533,7 @@ class XY_ImageDataGenerator(object):
         self.contrast_stretching = contrast_stretching
         self.adaptive_equalization = adaptive_equalization
         self.histogram_equalization = histogram_equalization
+        self.random_invert = random_invert
 
         if hsv_augmentation:
             assert type(hsv_augmentation) == tuple, 'Tuple of parameters expected for hsv augmentation'
@@ -3708,6 +3710,13 @@ class XY_ImageDataGenerator(object):
                 sigma = np.random.uniform(self.gaussian_blur[0], self.gaussian_blur[1])
                 x = ndimage.filters.gaussian_filter(x, sigma = sigma)
                 y = [ndimage.filters.gaussian_filter(_y, sigma = sigma) for _y in y]
+
+        if self.random_invert:
+            if np.random.random() < 0.5:
+                min_x = max(0, -1 * np.min(x))
+                max_x = min_x + np.max(x)
+                x_dtype = x.dtype
+                x = (((1 - ((x + min_x) / max_x)) * max_x) - min_x).astype(x_dtype)
 
         if y is not None and self.y_gaussian_blur is not None:
             if np.random.random() < 0.5:

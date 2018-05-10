@@ -724,7 +724,7 @@ def predict_experiment(fn_experiment, fn_predict = 'predict_model', **kwargs):
 
 
 def main():
-        
+    
         predict_experiment([train.train_resnet101_semantic,
                             train.train_resnet50_semantic,
                             train.train_resnet101_semantic_maskcount_balanced,
@@ -759,8 +759,8 @@ def main():
                                             'n_dilate': 1,
                                             'n_erode': 0},
                             use_semantic = True)
-        """
 
+        """
 if __name__ == '__main__':
     main()
     
